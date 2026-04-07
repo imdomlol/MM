@@ -1,4 +1,4 @@
-/* ========================================================================== 
+﻿/* ========================================================================== 
    1) THEME TOKENS
    ========================================================================== */
 :root {
@@ -31,6 +31,17 @@
   --radius-lg: 14px;
   --radius-xl: 16px;
   --radius-2xl: 18px;
+
+  --content-max: 1100px;
+  --panel-max: 760px;
+  --gutter: clamp(14px, 2.6vw, 22px);
+
+  --control-height: 2.2rem;
+  --control-bg: rgba(0,0,0,0.35);
+  --control-border: rgba(255,255,255,0.14);
+  --control-placeholder: rgba(242,242,242,0.45);
+  --control-focus-border: rgba(0,217,255,0.45);
+  --control-focus-ring: 0 0 0 3px rgba(0,217,255,0.12);
 }
 
 :root[data-theme="light"] {
@@ -48,6 +59,12 @@
   --accent-2: rgb(65, 103, 255);
 
   --shadow-card: 0 18px 60px rgba(15,23,42,0.18);
+
+  --control-bg: rgba(255,255,255,0.92);
+  --control-border: rgba(15,23,42,0.16);
+  --control-placeholder: rgba(15,23,42,0.45);
+  --control-focus-border: rgba(0,119,255,0.40);
+  --control-focus-ring: 0 0 0 3px rgba(0,119,255,0.12);
 }
 
 :root[data-theme="secret"][data-secret-owner="Caine Astrin"] .card {
@@ -303,6 +320,7 @@
 
 .inventory-subselect {
   min-width: 180px;
+  max-width: 100%;
 }
 
 /* ========================================================================== 
@@ -324,10 +342,12 @@ body::before {
 
 html {
   background: var(--bg);
+  min-height: 100%;
 }
 
 body {
   background: transparent;
+  min-height: 100vh;
   margin: 0;
   color: var(--text);
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
@@ -390,24 +410,25 @@ input, select, button { font: inherit; }
    3) LAYOUT
    ========================================================================== */
 .container {
-  max-width: 1100px;
+  width: min(var(--content-max), calc(100% - (var(--gutter) * 2)));
   margin: 0 auto;
-  padding: 28px 18px;
+  padding: 28px 0;
 }
 
 .page {
   display: grid;
-  max-width: 1100px;
+  width: min(var(--content-max), calc(100% - (var(--gutter) * 2)));
   margin: 0 auto;
-  padding: 26px 18px 40px;
+  padding: 26px 0 40px;
   justify-items: center;
   justify-self: center;
 }
 
 .page-crafts {
-  max-width: None;
+  max-width: none;
+  width: min(1400px, calc(100% - (var(--gutter) * 2)));
   margin: 0 auto;
-  padding: 25px 25px 50px;
+  padding: 25px 0 50px;
 }
 
 .page h1 {
@@ -444,9 +465,9 @@ input, select, button { font: inherit; }
 }
 
 .topbar-inner {
-  max-width: 1100px;
+  width: min(var(--content-max), calc(100% - (var(--gutter) * 2)));
   margin: 0 auto;
-  padding: 12px 18px;
+  padding: 12px 0;
   display: flex;
   align-items: center;
   gap: 14px;
@@ -454,7 +475,7 @@ input, select, button { font: inherit; }
 
 .topbar-brand {
   color: #fff;
-  font-weight: 800;
+  font-weight: 500;
   letter-spacing: 0.2px;
   text-decoration: none;
   font-size: 14px;
@@ -470,10 +491,21 @@ input, select, button { font: inherit; }
 
 .topbar-link {
   color: rgba(242,242,242,0.8);
+  font-weight: 500;
   text-decoration: none;
   font-size: 13px;
   padding: 8px 10px;
   border-radius: var(--radius-sm);
+}
+
+.topbar-brand.is-active,
+.topbar-link.is-active {
+  color: #fff;
+  font-weight: 800;
+}
+
+.topbar-link.is-active {
+  background: rgba(255,255,255,0.06);
 }
 
 .topbar-link:hover {
@@ -519,9 +551,35 @@ input, select, button { font: inherit; }
   background: rgba(0,0,0,0.06);
 }
 
+:root[data-theme="light"] .topbar-brand.is-active,
+:root[data-theme="light"] .topbar-link.is-active {
+  color: #0f172a;
+}
+
+:root[data-theme="light"] .topbar-link.is-active {
+  background: rgba(0,0,0,0.06);
+}
+
 :root[data-theme="light"] .theme-select {
   background: rgba(255,255,255,0.9);
   border-color: rgba(15,23,42,0.16);
+}
+
+@media (max-width: 900px) {
+  .topbar-inner {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .topbar-nav {
+    order: 3;
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .topbar-actions {
+    margin-left: auto;
+  }
 }
 
 /* ========================================================================== 
@@ -538,11 +596,11 @@ input, select, button { font: inherit; }
 
 .hero-card {
   width: 100%;
-  max-width: 780px;
+  max-width: min(780px, 100%);
   background: linear-gradient(180deg, var(--panel-strong), var(--panel));
   border: 1px solid var(--border);
   border-radius: var(--radius-2xl);
-  padding: 28px;
+  padding: clamp(18px, 2.5vw, 28px);
   box-shadow: var(--shadow-card);
 }
 
@@ -576,7 +634,7 @@ input, select, button { font: inherit; }
 .grid {
   display: grid;
   gap: 1em;
-  padding: 2em;
+  padding: clamp(14px, 3vw, 2em);
 }
 
 /* Crafts Hub card layout */
@@ -584,16 +642,13 @@ input, select, button { font: inherit; }
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   grid-auto-rows: 200px;
-  gap: 1em;
-  padding: min(10em, 5%);
+  gap: clamp(10px, 1.8vw, 16px);
+  padding: clamp(10px, 3vw, 24px);
   text-align: center;
 }
 
 /* Disable the vertical stack spacing inside the grid */
-.card-grid .card + .card {
-  margin-top: 0;
-}
-
+.card-grid .card + .card,
 .grid .card + .card {
   margin-top: 0;
 }
@@ -609,7 +664,8 @@ input, select, button { font: inherit; }
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   padding: 1em;
-  max-width: fit-content;
+  width: 100%;
+  max-width: 100%;
 }
 
 .card + .card { margin-top: 12px; }
@@ -631,7 +687,19 @@ input, select, button { font: inherit; }
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  max-width: fit-content;
+  width: 100%;
+  max-width: 100%;
+}
+
+.page > .toolbar,
+.page > .card {
+  width: fit-content;
+  max-width: min(100%, var(--panel-max));
+  margin-inline: auto;
+}
+
+.toolbar > div:empty {
+  display: none;
 }
 
 .toolbar label {
@@ -645,7 +713,7 @@ input, select, button { font: inherit; }
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-width: fit-content;
+  min-width: 180px;
 }
 
 @media (max-width: 640px) {
@@ -654,13 +722,14 @@ input, select, button { font: inherit; }
 
 /* ---------- Inputs ---------- */
 input[type="text"], input[type="search"], select {
-  height: 2em;
+  height: var(--control-height);
   padding: 0 10px;
   border-radius: var(--radius-md);
-  border: 1px solid rgba(255,255,255,0.14);
-  background: rgba(0,0,0,0.35);
+  border: 1px solid var(--control-border);
+  background: var(--control-bg);
   color: var(--text);
   outline: none;
+  min-width: 0;
 }
 
 input.indexText[type="text"]  {
@@ -668,33 +737,12 @@ input.indexText[type="text"]  {
 }
 
 input[type="text"]::placeholder, input[type="search"]::placeholder {
-  color: rgba(242,242,242,0.45);
+  color: var(--control-placeholder);
 }
 
 input[type="text"]:focus, input[type="search"]:focus, select:focus {
-  border-color: rgba(0,217,255,0.45);
-  box-shadow: 0 0 0 3px rgba(0,217,255,0.12);
-}
-
-/* Light mode inputs should not be dark */
-:root[data-theme="light"] input[type="text"],
-:root[data-theme="light"] input[type="search"],
-:root[data-theme="light"] select {
-  background: rgba(255,255,255,0.92);
-  border-color: rgba(15,23,42,0.16);
-  color: var(--text);
-}
-
-:root[data-theme="light"] input[type="text"]::placeholder,
-:root[data-theme="light"] input[type="search"]::placeholder {
-  color: rgba(15,23,42,0.45);
-}
-
-:root[data-theme="light"] input[type="text"]:focus,
-:root[data-theme="light"] input[type="search"]:focus,
-:root[data-theme="light"] select:focus {
-  border-color: rgba(0,119,255,0.40);
-  box-shadow: 0 0 0 3px rgba(0,119,255,0.12);
+  border-color: var(--control-focus-border);
+  box-shadow: var(--control-focus-ring);
 }
 
 /* ---------- Buttons ---------- */
@@ -861,7 +909,7 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus {
    7) LINK MARKS (favorite/category)
    ========================================================================== */
 a.is-favorited::before{
-  content: "⭐ ";
+  content: "⭐";
 }
 
 a.is-selected{
