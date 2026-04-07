@@ -816,18 +816,22 @@ function addCardSelected(baseElement){
 function addCardToolbar(baseElement){
     const cardBase = createCard(baseElement, elementClassCard, pageCraftsCardStyleToolbar);
     cardBase.style.overflowY = "";
+    cardBase.style.display = "flex";
+    cardBase.style.alignItems = "center";
+    cardBase.style.gap = "0.5rem";
     let elementClass = "", elementId = "", elementText = "", elementHref;
 
     appendButton(cardBase, elementClass = elementClassButton, elementId = "testButton", elementText = "Clear")
     appendButton(cardBase, elementClass = elementClassButton, elementId = "test2Button", elementText = "Push")
     appendButton(cardBase, elementClass = elementClassButton, elementId = "toolbarSave", elementText = "Save")
+    appendButton(cardBase, elementClass = elementClassButton, elementId = "test4Button", elementText = "Load")
+    appendDropdown(cardBase, elementId = "testDropdown")
     const settingsButton = appendButton(cardBase, elementClass = elementClassButton, elementId = toolbarButtonSettingsId, elementText = "⚙")
     settingsButton.setAttribute("aria-expanded", "false");
     settingsButton.setAttribute("aria-controls", toolbarSettingsMenuId);
     settingsButton.setAttribute("aria-label", "Borrow settings");
     settingsButton.title = "Borrow settings";
-    appendButton(cardBase, elementClass = elementClassButton, elementId = "test4Button", elementText = "Load")
-    appendDropdown(cardBase, elementId = "testDropdown")
+    settingsButton.style.marginLeft = "auto";
 
     const settingsMenu = document.createElement("div");
     settingsMenu.id = toolbarSettingsMenuId;
