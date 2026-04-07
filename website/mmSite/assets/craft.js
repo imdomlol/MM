@@ -838,13 +838,13 @@ function addCardToolbar(baseElement){
 
     const settingsTitle = document.createElement("h2");
     settingsTitle.classList.add("settings-title");
-    settingsTitle.textContent = "Character Borrow Defaults";
+    settingsTitle.textContent = "Borrow Settings";
 
     settingsHeader.prepend(settingsTitle);
 
     const settingsHint = document.createElement("p");
     settingsHint.classList.add("settings-hint");
-    settingsHint.textContent = "Cosmetic only for now. Cycle each character state: always, ask, never.";
+    settingsHint.textContent = "Determines what inventories to pull from when checking material progress.";
 
     const settingsList = document.createElement("div");
     settingsList.id = toolbarSettingsListId;
