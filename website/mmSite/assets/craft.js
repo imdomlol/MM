@@ -839,7 +839,7 @@ function addCardToolbar(baseElement){
 
     const toggleSectionTitle = document.createElement("h2");
     toggleSectionTitle.classList.add("settings-title");
-    toggleSectionTitle.textContent = "Toggle Settings";
+    toggleSectionTitle.textContent = "Toggles";
 
     const toggleSectionHint = document.createElement("p");
     toggleSectionHint.classList.add("settings-hint");
@@ -861,7 +861,7 @@ function addCardToolbar(baseElement){
 
     const settingsTitle = document.createElement("h2");
     settingsTitle.classList.add("settings-title");
-    settingsTitle.textContent = "Borrow Settings";
+    settingsTitle.textContent = "Borrowing";
 
     settingsHeader.prepend(settingsTitle);
 
