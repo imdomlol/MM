@@ -9,7 +9,7 @@ import { initCraftPage } from "./craft.js";
 // GLOBALS
 export let gAllRecipes = [];
 export let gAllItems = [];
-let gAllPlayers = [];
+export let gAllPlayers = [];
 let gEqualizeCardSizesFunction = null;
 let gCurrentRecipeDetailSelection = null;
 const RECIPES_FILEPATH = "./data/recipes.json"
