@@ -1,0 +1,79 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title id="windowsTitle">Recipe</title>
+        <link rel="stylesheet" href="/assets/app.css">
+    </head>
+    <body>
+        <video class="bg-video" autoplay muted loop playsinline disablepictureinpicture controlslist="nodownload noplaybackrate noremoteplayback">
+            <source src="/assets/mp4/dustParticles.mp4" type="video/mp4">
+        </video>
+        <!--#include virtual="/partials/header.html" -->
+        <main class="page" id="recipePage">
+            <div class = toolbar>
+                <a class="btn" href="/recipes.html">Back to List</a>
+
+                <div></div>
+                <div></div>
+
+                <button class="btn" id="prevBtn">Previous</button>
+                <button class="btn" id="nextBtn">Next</button>
+
+                <div></div>
+                <div></div>
+
+                <div class="field">
+                    <label>Recipe Index</label>
+                    <input type="text" id="currentRecipeIndex" class="indexText">
+                </div>
+            </div>
+
+            <div class="Error" id="Error"></div>
+            <h1 id="recipeName">Recipe Name</h1>
+            <p class="page-subtitle" id="recipeCategory">Category</p>
+
+            <div class="card">
+                <div class="section-title">Requirements</div>
+                <div class="kv">
+                    <div class="k">Crafting Time (minutes)</div><div class="v" id="craftTime"></div>
+                    <div class="k">Tools</div><div class="v" id="tools"></div>
+                    <div class="k">Skills</div><div class="v" id="skills"></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="section-title">Ingredients</div>
+                <ul class="list" id="ingredientsList"></ul>
+            </div>
+
+            <div class="card">
+                <div class="section-title">Results</div>
+                <ul class="list" id="resultsList"></ul>
+            </div>
+
+            <div class="card">
+                <div class="section-title">Related Recipes</div>
+                <ul class="list" id="relatedRecipesList"></ul>
+            </div>
+        </main>
+
+        <!-- Custom right-click menu -->
+        <div id="ctxMenu" class="ctx" hidden>
+            <button type="button" data-action="toggle-favorited">⭐ Favorite</button>
+
+            <div class="ctx-sep"></div>
+
+            <div class="ctx-label">Set category</div>
+            <button type="button" data-action="set-category" data-category="Blacksmithing">Blacksmithing</button>
+            <button type="button" data-action="set-category" data-category="Brewing">Brewing</button>
+            <button type="button" data-action="set-category" data-category="Cooking">Cooking</button>
+            <button type="button" data-action="set-category" data-category="">Clear category</button>
+        </div>
+
+        <script type="module" src="/assets/app.js"></script>
+        <script type="module" src="/assets/rightClickMenu.js"></script>
+        <script window.MM_PAGE = "Recipe"></script>
+
+    </body>
+</html>

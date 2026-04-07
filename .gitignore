@@ -1,0 +1,7 @@
+# --- Project secrets ---
+# MythMagic crafter data files
+Misc/mythmagic-crafter-*.json
+
+# Environment
+.env
+.env.*

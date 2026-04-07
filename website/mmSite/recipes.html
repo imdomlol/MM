@@ -1,0 +1,63 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Recipes Hub</title>
+    <link rel="stylesheet" href="/assets/app.css">
+  </head>
+  <body>
+    <video class="bg-video" autoplay muted loop playsinline disablepictureinpicture controlslist="nodownload noplaybackrate noremoteplayback">
+        <source src="/assets/mp4/dustParticles.mp4" type="video/mp4">
+    </video>
+    <!--#include virtual="/partials/header.html" -->
+    <main class ="page" id="RecipesPage">
+      <h1>Recipes</h1>
+
+      <div class="toolbar">
+        <div class="field">
+          <label>Search</label>
+          <input type="search" id="search" placeholder="Search recipes...">
+        </div>
+
+        <div class="field">
+          <label>Filter by:</label>
+          <select id="category">
+          <option value="">All categories</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Sort:</label>
+          <select id="sort">
+            <option value="name_asc">Name (A→Z)</option>
+            <option value="name_desc">Name (Z→A)</option>
+            <option value="timer_asc">Crafting Time (Low→High)</option>
+            <option value="timer_desc">Crafting Time (High→Low)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="card">
+        <ul class="list" id="allRecipes"></ul>
+      </div>
+    </main>
+
+    <!-- Custom right-click menu -->
+    <div id="ctxMenu" class="ctx" hidden>
+        <button type="button" data-action="toggle-favorited">⭐ Favorite</button>
+
+        <div class="ctx-sep"></div>
+
+        <div class="ctx-label">Set category</div>
+        <button type="button" data-action="set-category" data-category="Blacksmithing">Blacksmithing</button>
+        <button type="button" data-action="set-category" data-category="Brewing">Brewing</button>
+        <button type="button" data-action="set-category" data-category="Cooking">Cooking</button>
+        <button type="button" data-action="set-category" data-category="">Clear category</button>
+    </div>
+
+    <script type="module" src="/assets/app.js"></script>
+    <script type="module" src="/assets/rightClickMenu.js"></script>
+    <script window.MM_PAGE = "Recipes"></script>
+
+  </body>
+</html>

@@ -1,0 +1,891 @@
+/* ========================================================================== 
+   1) THEME TOKENS
+   ========================================================================== */
+:root {
+  --bg: #0b0b0b;
+  --bgTopBar: rgba(17,17,17,0.85);
+  --panel: rgba(255,255,255,0.06);
+  --panel-strong: rgba(255,255,255,0.10);
+  --text: #ffffff;
+  --textList: rgb(0, 174, 255);
+  --textListHover: rgb(82, 200, 255);
+  --textError: #f2f2f2;
+  --textTitle: #f2f2f2;
+  --muted: rgba(242,242,242,0.7);
+  --border: rgba(255,255,255,0.12);
+  --borderTopBar: rgba(255,255,255,0.10);
+  --accent: #6b8cff;
+  --accent-2: #5674e6;
+
+  --skillsMandatory: #fff5cc;
+
+  --textYellow: #ffda45;
+  --textGreen: #57ff9e;
+  --textRed: #ff5757;
+
+  --shadow-card: 0 18px 60px rgba(0,0,0,0.45);
+  --shadow-menu: 0 18px 60px rgba(0,0,0,0.55);
+
+  --radius-sm: 10px;
+  --radius-md: 12px;
+  --radius-lg: 14px;
+  --radius-xl: 16px;
+  --radius-2xl: 18px;
+}
+
+:root[data-theme="light"] {
+  --bg: #f6f7fb;
+  --panel: rgba(49, 49, 49, 0.116);
+  --panel-strong: rgba(0, 0, 0, 0.158);
+  --text: #000000;
+  --textList: #0f172a;
+  --textListHover: #000000;
+  --textError: #0f172a;
+  --textTitle: #0f172a;
+  --muted: rgba(15,23,42,0.65);
+  --border: rgba(15,23,42,0.14);
+  --accent: #5e81ff;
+  --accent-2: rgb(65, 103, 255);
+
+  --shadow-card: 0 18px 60px rgba(15,23,42,0.18);
+}
+
+:root[data-theme="secret"][data-secret-owner="Caine Astrin"] .card {
+  z-index: -1;
+
+  background:
+    repeating-linear-gradient(
+      120deg,
+      rgba(255,236,180,0.06) 0px,
+      rgba(255,236,180,0.06) 1px,
+      transparent 1px,
+      transparent 22px
+    ),
+
+    repeating-linear-gradient(
+      60deg,
+      rgba(255,236,180,0.04) 0px,
+      rgba(255,236,180,0.04) 1px,
+      transparent 1px,
+      transparent 28px
+    );
+}
+
+/* Room + architecture (static) */
+:root[data-theme="secret"][data-secret-owner="Caine Astrin"]::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+
+  background:
+    radial-gradient(1200px 900px at 50% 120%, rgba(0,0,0,0.80), transparent 55%),
+    radial-gradient(900px 700px at 0% 50%, rgba(0,0,0,0.48), transparent 55%),
+    radial-gradient(900px 700px at 100% 50%, rgba(0,0,0,0.48), transparent 55%),
+    radial-gradient(700px 520px at 50% 12%, rgba(255,210,140,0.08), transparent 70%),
+
+    /* subtle warm haze */
+    radial-gradient(1100px 700px at 50% 75%, rgba(255,170,90,0.08), transparent 60%),
+    #060504;
+
+  background-repeat: no-repeat;
+}
+
+@keyframes candleFlicker {
+  0%, 100% { opacity: 1; filter: blur(0px); }
+  35% { opacity: 0.65; filter: blur(0px); }
+  70% { opacity: 0.85; filter: blur(0px); }
+}
+
+/* Candles only (animated) */
+:root[data-theme="secret"][data-secret-owner="Caine Astrin"]::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  animation: candleFlicker 2s ease-in-out infinite;
+
+  background:
+    /* distant candle blooms (small + faint) */
+    radial-gradient(10px 12px at 12% 58%, rgba(255,210,140,0.20), transparent 100%),
+    radial-gradient(8px 10px  at 18% 52%, rgba(255,200,120,0.16), transparent 100%),
+    radial-gradient(9px 11px  at 26% 60%, rgba(255,210,140,0.18), transparent 100%),
+    radial-gradient(7px 9px   at 34% 54%, rgba(255,195,115,0.14), transparent 100%),
+    radial-gradient(8px 10px  at 42% 62%, rgba(255,205,130,0.16), transparent 100%),
+    radial-gradient(9px 11px  at 50% 56%, rgba(255,220,150,0.18), transparent 100%),
+    radial-gradient(7px 9px   at 58% 63%, rgba(255,195,115,0.14), transparent 100%),
+    radial-gradient(8px 10px  at 66% 54%, rgba(255,205,130,0.16), transparent 100%),
+    radial-gradient(9px 11px  at 74% 61%, rgba(255,210,140,0.18), transparent 100%),
+    radial-gradient(8px 10px  at 82% 53%, rgba(255,200,120,0.16), transparent 100%),
+    radial-gradient(10px 12px at 88% 59%, rgba(255,220,150,0.20), transparent 100%),
+
+    /* foreground candle blooms (bigger + warmer) */
+    radial-gradient(22px 26px at 20% 70%, rgba(255,210,140,0.26), transparent 100%),
+    radial-gradient(26px 30px at 36% 72%, rgba(255,185,105,0.24), transparent 100%),
+    radial-gradient(20px 24px at 52% 69%, rgba(255,220,155,0.26), transparent 100%),
+    radial-gradient(28px 34px at 70% 73%, rgba(255,175,95,0.22), transparent 100%),
+    radial-gradient(22px 26px at 84% 70%, rgba(255,210,140,0.24), transparent 100%);
+
+  background-repeat: no-repeat;
+}
+
+:root[data-theme="secret"][data-secret-owner="Caine Astrin"] {
+  --bg: #0a0a0a;
+  --bgTopBar: rgba(24, 24, 23, 0.411);
+  --panel: rgba(107, 102, 91, 0.09);
+  --panel-strong: rgba(255, 248, 230, 0.14);
+  --textList: #bdaa76;
+  --textListHover: #bebdba;
+  --textError: #f2f2f2;
+  --textTitle: #f2f2f2;
+  --muted: rgba(246, 243, 234, 0.65);
+  --border: rgba(255, 236, 180, 0.18);
+  --borderTopBar: #cfa55b;
+  --accent: #e6c27a;
+  --accent-2: #cfa55b;
+}
+
+@keyframes stormPulse {
+  0%, 92%, 100% { opacity: 0; }
+  93% { opacity: 0.65; }
+  95% { opacity: 0.45; }
+  96% { opacity: 0.55; }
+  97% { opacity: 0; }
+}
+
+:root[data-theme="secret"][data-secret-owner="Lothar Drakeborne"] {
+  --bg: #020513;
+  --bgTopBar: #54586300;
+
+  --panel: rgba(235, 240, 255, 0.06);
+  --panel-strong: rgba(235, 240, 255, 0.11);
+
+  --textList: #ffffff;
+  --textListHover: #a8b8e6;
+
+  --muted: rgba(228, 232, 245, 0.62);
+
+  --border: #c8d0e770;
+  --borderTopBar: #c8d0e700;
+}
+
+:root[data-theme="secret"][data-secret-owner="Lothar Drakeborne"]::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  animation: stormPulse 10s ease-in-out infinite;
+
+  background:
+    radial-gradient(380px 240px at 78% 22%, rgba(220,235,255,0.22), transparent 70%),
+    radial-gradient(300px 200px at 84% 30%, rgba(190,220,255,0.16), transparent 72%),
+    radial-gradient(260px 180px at 70% 26%, rgba(200,230,255,0.14), transparent 74%),
+    radial-gradient(220px 160px at 88% 18%, rgba(240,250,255,0.12), transparent 75%),
+    radial-gradient(380px 240px at 58% 22%, rgba(220,235,255,0.22), transparent 70%),
+    radial-gradient(300px 200px at 64% 30%, rgba(190,220,255,0.16), transparent 72%),
+    radial-gradient(260px 180px at 50% 26%, rgba(200,230,255,0.14), transparent 74%),
+    radial-gradient(220px 160px at 68% 18%, rgba(240,250,255,0.12), transparent 75%),
+    radial-gradient(380px 240px at 38% 22%, rgba(220,235,255,0.22), transparent 70%),
+    radial-gradient(300px 200px at 44% 30%, rgba(190,220,255,0.16), transparent 72%),
+    radial-gradient(260px 180px at 30% 26%, rgba(200,230,255,0.14), transparent 74%),
+    radial-gradient(220px 160px at 48% 18%, rgba(240,250,255,0.12), transparent 75%),
+    radial-gradient(380px 240px at 18% 22%, rgba(220,235,255,0.22), transparent 70%),
+    radial-gradient(300px 200px at 24% 30%, rgba(190,220,255,0.16), transparent 72%),
+    radial-gradient(260px 180px at 10% 26%, rgba(200,230,255,0.14), transparent 74%),
+    radial-gradient(220px 160px at 28% 18%, rgba(240,250,255,0.12), transparent 75%);
+
+  background-repeat: no-repeat;
+  filter: blur(0.7px);
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.85; }
+}
+
+:root[data-theme="secret"][data-secret-owner="Victoria Gwen Ravenheart"]::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  animation: twinkle 6s ease-in-out infinite;
+
+  background:
+    radial-gradient(1200px 700px at 20% 10%, rgba(79,111,168,0.22), transparent 60%),
+    radial-gradient(900px 600px at 80% 20%, rgba(139,95,167,0.18), transparent 55%),
+    radial-gradient(900px 700px at 50% 100%, rgba(216,140,207,0.10), transparent 60%),
+
+    radial-gradient(1px 1px at 10px 20px, rgba(255,255,255,0.45) 60%, transparent 62%),
+    radial-gradient(1px 1px at 80px 60px, rgba(255,255,255,0.35) 60%, transparent 62%),
+    radial-gradient(1px 1px at 140px 120px, rgba(255,255,255,0.40) 60%, transparent 62%),
+    radial-gradient(1px 1px at 200px 40px, rgba(255,255,255,0.30) 60%, transparent 62%),
+
+    radial-gradient(1.5px 1.5px at 30px 90px, rgba(255,255,255,0.55) 60%, transparent 62%),
+    radial-gradient(1.5px 1.5px at 170px 160px, rgba(255,255,255,0.50) 60%, transparent 62%),
+
+    radial-gradient(2px 2px at 110px 10px, rgba(255,255,255,0.75) 60%, transparent 62%),
+    radial-gradient(2px 2px at 220px 180px, rgba(255,255,255,0.70) 60%, transparent 62%),
+
+    #05060a;
+
+  background-size:
+    auto,
+    auto,
+    auto,
+    240px 200px,
+    240px 200px,
+    240px 200px,
+    240px 200px,
+    320px 260px,
+    320px 260px,
+    480px 380px,
+    480px 380px,
+    auto;
+
+  background-repeat:
+    no-repeat,
+    no-repeat,
+    no-repeat,
+    repeat,
+    repeat,
+    repeat,
+    repeat,
+    repeat,
+    repeat,
+    repeat,
+    repeat,
+    no-repeat;
+}
+
+:root[data-theme="secret"][data-secret-owner="Victoria Gwen Ravenheart"] {
+  --bg: #0b0710;
+  --bgTopBar: #39264200;
+
+  --panel: #281d2e7e;
+  --panel-strong: rgba(235, 240, 255, 0.11);
+
+  --textList: #f0bbe6;
+  --textListHover: #c067b6;
+
+  --muted: rgba(228, 232, 245, 0.62);
+
+  --border: #0b0710;
+  --borderTopBar: #d88ccf00;
+}
+
+:root[data-theme="secret"][data-secret-owner="Victoria Gwen Ravenheart"] body {
+  background: transparent;
+}
+
+:root[data-theme="secret"][data-secret-owner="Z (#10)"] {
+  --bg: #020513;
+  --bgTopBar: #8f4f02;
+
+  --panel: #83510049;
+  --panel-strong: rgba(235, 240, 255, 0.11);
+
+  --textList: #ffffff;
+  --textListHover: #a8b8e6;
+
+  --muted: rgba(228, 232, 245, 0.62);
+
+  --border: #ad7135;
+  --borderTopBar: #e69340;
+}
+
+:root:not([data-theme="secret"][data-secret-owner="Z (#10)"]) .bg-video {
+  display: none;
+}
+
+.inventory-subselect {
+  min-width: 180px;
+}
+
+/* ========================================================================== 
+   2) BASE + GLOBAL ELEMENTS
+   ========================================================================== */
+* { box-sizing: border-box; }
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+
+  background:
+    radial-gradient(900px 500px at 20% 10%, rgba(0,217,255,0.10), transparent 60%),
+    radial-gradient(700px 400px at 80% 20%, rgba(0,191,255,0.08), transparent 55%);
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  background: transparent;
+  margin: 0;
+  color: var(--text);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  position: relative;
+}
+
+/* Light theme */
+:root[data-theme="light"] body::before {
+  background:
+    radial-gradient(900px 500px at 20% 10%, rgba(0,119,255,0.10), transparent 60%),
+    radial-gradient(700px 400px at 80% 20%, rgba(0,95,209,0.08), transparent 55%);
+}
+
+/* Secret themes */
+:root[data-theme="secret"][data-secret-owner="Caine Astrin"] body::before {
+  background:
+    radial-gradient(900px 500px at 20% 10%, rgba(255, 136, 0, 0.1), transparent 60%),
+    radial-gradient(700px 400px at 80% 20%, rgba(255, 145, 0, 0.08), transparent 55%);
+}
+
+:root[data-theme="secret"][data-secret-owner="Lothar Drakeborne"] body::before {
+  background:
+    radial-gradient(900px 500px at 20% 10%, rgba(255, 255, 255, 0.1), transparent 60%),
+    radial-gradient(700px 400px at 80% 20%, rgba(255, 255, 255, 0.08), transparent 55%);
+}
+
+:root[data-theme="secret"][data-secret-owner="Victoria Gwen Ravenheart"] body::before {
+  background:
+    radial-gradient(1000px 500px at 10% 100%, #4da6ff, transparent 60%),
+    radial-gradient(750px 750px at 90% 90%, #4da6ff, transparent 55%),
+    radial-gradient(100px 100px at 10% 10%, #4da6ff, transparent 60%),
+    radial-gradient(100px 100px at 90% 10%, #4da6ff, transparent 55%);
+}
+
+:root[data-theme="secret"][data-secret-owner="Z (#10)"] body::before {
+  background:
+    radial-gradient(1000px 500px at 10% 100%, #4da6ff00, transparent 60%);
+}
+
+a {
+  color: var(--accent-2);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+h1 {
+  margin: 14px 0 10px 0;
+  font-size: 38px;
+  line-height: 1.08;
+}
+
+/* Make form elements inherit font by default */
+input, select, button { font: inherit; }
+
+/* ========================================================================== 
+   3) LAYOUT
+   ========================================================================== */
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 28px 18px;
+}
+
+.page {
+  display: grid;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 26px 18px 40px;
+  justify-items: center;
+  justify-self: center;
+}
+
+.page-crafts {
+  max-width: None;
+  margin: 0 auto;
+  padding: 25px 25px 50px;
+}
+
+.page h1 {
+  margin: 8px 0 14px;
+  font-size: 42px;
+  line-height: 1.05;
+  letter-spacing: -0.3px;
+}
+
+.page-subtitle {
+  margin: 0 0 18px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+@media (max-width: 640px) {
+  .page h1 { font-size: 34px; }
+}
+
+#craft h1 {
+  text-align: center;
+}
+
+/* ========================================================================== 
+   4) HEADER / TOPBAR
+   ========================================================================== */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background: var(--bgTopBar);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--borderTopBar);
+}
+
+.topbar-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.topbar-brand {
+  color: #fff;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  text-decoration: none;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.topbar-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.topbar-link {
+  color: rgba(242,242,242,0.8);
+  text-decoration: none;
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+}
+
+.topbar-link:hover {
+  color: #fff;
+  background: rgba(255,255,255,0.06);
+  text-decoration: none;
+}
+
+/* Theme control styles in header */
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.theme-label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.theme-select {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(0,0,0,0.25);
+  color: var(--text);
+}
+
+/* Light theme topbar adjustments */
+:root[data-theme="light"] .topbar {
+  background: rgba(255,255,255,0.78);
+  border-bottom: 1px solid rgba(15,23,42,0.12);
+}
+
+:root[data-theme="light"] .topbar-brand { color: #0f172a; }
+
+:root[data-theme="light"] .topbar-link { color: rgba(15,23,42,0.75); }
+
+:root[data-theme="light"] .topbar-link:hover {
+  color: #0f172a;
+  background: rgba(0,0,0,0.06);
+}
+
+:root[data-theme="light"] .theme-select {
+  background: rgba(255,255,255,0.9);
+  border-color: rgba(15,23,42,0.16);
+}
+
+/* ========================================================================== 
+   5) COMPONENTS
+   ========================================================================== */
+
+/* ---------- Hero (index.html) ---------- */
+.hero {
+  min-height: calc(100vh - 90px);
+  display: grid;
+  place-items: center;
+  padding: 24px 0;
+}
+
+.hero-card {
+  width: 100%;
+  max-width: 780px;
+  background: linear-gradient(180deg, var(--panel-strong), var(--panel));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2xl);
+  padding: 28px;
+  box-shadow: var(--shadow-card);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.06);
+  color: rgba(242,242,242,0.85);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.6px;
+}
+
+/* Light theme badge readability fix */
+:root[data-theme="light"] .badge {
+  border: 1px solid rgba(15,23,42,0.14);
+  background: rgba(255,255,255,0.85);
+  color: rgba(15,23,42,0.75);
+}
+
+.subtitle {
+  margin: 0 0 0 0;
+  color: var(--muted);
+  font-size: 1.1em;
+}
+
+.grid {
+  display: grid;
+  gap: 1em;
+  padding: 2em;
+}
+
+/* Crafts Hub card layout */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-auto-rows: 200px;
+  gap: 1em;
+  padding: min(10em, 5%);
+  text-align: center;
+}
+
+/* Disable the vertical stack spacing inside the grid */
+.card-grid .card + .card {
+  margin-top: 0;
+}
+
+.grid .card + .card {
+  margin-top: 0;
+}
+
+@media (max-width: 640px) {
+  .grid { grid-template-columns: 1fr; }
+  h1 { font-size: 32px; }
+}
+
+/* ---------- Cards ---------- */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 1em;
+  max-width: fit-content;
+}
+
+.card + .card { margin-top: 12px; }
+
+.section-title {
+  font-size: 1.5em;
+  font-weight: 800;
+  margin: 0 0 10px;
+}
+
+/* ---------- Toolbar / controls ---------- */
+.toolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 12px 0 16px;
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  max-width: fit-content;
+}
+
+.toolbar label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: fit-content;
+}
+
+@media (max-width: 640px) {
+  .field { min-width: 100%; }
+}
+
+/* ---------- Inputs ---------- */
+input[type="text"], input[type="search"], select {
+  height: 2em;
+  padding: 0 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(0,0,0,0.35);
+  color: var(--text);
+  outline: none;
+}
+
+input.indexText[type="text"]  {
+  max-width: 2em;
+}
+
+input[type="text"]::placeholder, input[type="search"]::placeholder {
+  color: rgba(242,242,242,0.45);
+}
+
+input[type="text"]:focus, input[type="search"]:focus, select:focus {
+  border-color: rgba(0,217,255,0.45);
+  box-shadow: 0 0 0 3px rgba(0,217,255,0.12);
+}
+
+/* Light mode inputs should not be dark */
+:root[data-theme="light"] input[type="text"],
+:root[data-theme="light"] input[type="search"],
+:root[data-theme="light"] select {
+  background: rgba(255,255,255,0.92);
+  border-color: rgba(15,23,42,0.16);
+  color: var(--text);
+}
+
+:root[data-theme="light"] input[type="text"]::placeholder,
+:root[data-theme="light"] input[type="search"]::placeholder {
+  color: rgba(15,23,42,0.45);
+}
+
+:root[data-theme="light"] input[type="text"]:focus,
+:root[data-theme="light"] input[type="search"]:focus,
+:root[data-theme="light"] select:focus {
+  border-color: rgba(0,119,255,0.40);
+  box-shadow: 0 0 0 3px rgba(0,119,255,0.12);
+}
+
+/* ---------- Buttons ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1em;
+  height: 2em;
+  padding: 0 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.06);
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+  min-width: 1em;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  background: rgba(255,255,255,0.10);
+  border-color: rgba(255,255,255,0.20);
+  text-decoration: none;
+}
+
+.btn.primary {
+  background: linear-gradient(180deg, rgba(0,217,255,0.22), rgba(0,217,255,0.12));
+  border-color: rgba(0,217,255,0.35);
+}
+
+.btn.primary:hover {
+  background: linear-gradient(180deg, rgba(0,217,255,0.28), rgba(0,217,255,0.16));
+}
+
+.btn.ghost {
+  background: transparent;
+}
+
+/* Light theme buttons */
+:root[data-theme="light"] .btn {
+  border: 1px solid rgba(15,23,42,0.16);
+  background: rgba(255,255,255,0.88);
+  color: var(--text);
+}
+
+:root[data-theme="light"] .btn:hover {
+  background: rgba(255,255,255,0.96);
+  border-color: rgba(15,23,42,0.22);
+}
+
+:root[data-theme="light"] .btn.ghost {
+  background: transparent;
+  border-color: rgba(15,23,42,0.16);
+}
+
+/* ---------- Lists ---------- */
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.list li {
+  margin: 0;
+  padding: 0;
+}
+
+.list a {
+  display: block;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  text-decoration: none;
+  color: var(--textList);
+}
+
+.list a:hover {
+  text-decoration: none;
+  font-weight: inherit;
+  color: var(--textListHover);
+  background: var(--panel);
+  border-color: var(--border);
+}
+
+.qty {
+  color: var(--muted);
+  font-size: 0.85em;
+  margin-left: 6px;
+}
+
+/* ---------- Key/Value grid (recipe requirements) ---------- */
+.kv {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 10px 16px;
+}
+
+.kv .k {
+  color: var(--muted);
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.kv .v {
+  color: var(--text);
+  font-size: 14px;
+}
+
+@media (max-width: 640px) {
+  .kv { grid-template-columns: 1fr; }
+}
+
+/* ========================================================================== 
+   6) CONTEXT MENU
+   ========================================================================== */
+.ctx {
+  position: fixed;
+  z-index: 9999;
+  width: 220px;
+  padding: 8px;
+  border-radius: var(--radius-lg);
+  background: rgba(18,18,18,0.98);
+  border: 1px solid rgba(255,255,255,0.14);
+  box-shadow: var(--shadow-menu);
+}
+
+.ctx button {
+  width: 100%;
+  text-align: left;
+  padding: 10px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ctx button:hover {
+  background: rgba(255,255,255,0.08);
+}
+
+.ctx-sep {
+  height: 1px;
+  margin: 8px 6px;
+  background: rgba(255,255,255,0.10);
+}
+
+.ctx-label {
+  padding: 6px 10px 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+}
+
+/* ==========================================================================
+   7) LINK MARKS (favorite/category)
+   ========================================================================== */
+a.is-favorited::before{
+  content: "⭐ ";
+}
+
+a.is-selected{
+  color: var(--textListHover);
+}
+
+a[data-usercategory]::after{
+  content: " - " attr(data-usercategory);
+  color: var(--muted);
+  font-size: 12px; 
+}
+
+/* ==========================================================================
+   8) Video
+   ========================================================================== */
+
+.bg-video{
+  position: fixed;
+  inset: 0;
+  z-index: -3;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  opacity: 0.5
+}
+
