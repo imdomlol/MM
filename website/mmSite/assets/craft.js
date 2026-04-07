@@ -21,7 +21,6 @@ const toolbarButtonRecursiveId = "toolbarRecursive"
 const toolbarButtonSettingsId = "toolbarSettings"
 const toolbarSettingsMenuId = "toolbarSettingsMenu"
 const toolbarSettingsListId = "toolbarSettingsList"
-const toolbarSettingsCloseId = "toolbarSettingsClose"
 const selectedTreeCollapsedStorageKey = "mm_selected_tree_collapsed_v1"
 const materialsProgressStorageKey = "mm_materials_progress_v1"
 const borrowSettingsStorageKey = "mm_character_borrow_settings_v1"
@@ -252,8 +251,7 @@ function renderSettingsMenuRows() {
 function setupToolbarSettingsMenu() {
     const menu = document.getElementById(toolbarSettingsMenuId);
     const openButton = document.getElementById(toolbarButtonSettingsId);
-    const closeButton = document.getElementById(toolbarSettingsCloseId);
-    if (!menu || !openButton || !closeButton) return;
+    if (!menu || !openButton) return;
 
     const setOpen = (isOpen) => {
         menu.hidden = !isOpen;
@@ -270,12 +268,6 @@ function setupToolbarSettingsMenu() {
         event.preventDefault();
         event.stopPropagation();
         setOpen(menu.hidden);
-    });
-
-    closeButton.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        setOpen(false);
     });
 
     menu.addEventListener("click", (event) => {
@@ -847,9 +839,6 @@ function addCardToolbar(baseElement){
     const settingsTitle = document.createElement("h2");
     settingsTitle.classList.add("settings-title");
     settingsTitle.textContent = "Character Borrow Defaults";
-
-    const settingsCloseButton = appendButton(settingsHeader, elementClassButton, toolbarSettingsCloseId, "Close");
-    settingsCloseButton.classList.add("ghost");
 
     settingsHeader.prepend(settingsTitle);
 
