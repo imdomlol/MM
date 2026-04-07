@@ -19,6 +19,7 @@ const pageCraftsId = "craft"
 const toolbarButtonSaveId = "toolbarSave"
 const toolbarButtonRecursiveId = "toolbarRecursive"
 const selectedTreeCollapsedStorageKey = "mm_selected_tree_collapsed_v1"
+const materialsProgressStorageKey = "mm_materials_progress_v1"
 
 //STYLES
 const pageCraftsCardStyleTracked = "Tracked"
@@ -102,6 +103,7 @@ const pageCraftsMaterialsListId = "materialsList"
 //CRAFTING TIME
 const pageCraftsCraftingTimeTitle = "Crafting Time"
 const pageCraftsCraftingTimeSubtitleId = "craftingTimeSubtitle"
+const pageCraftsCraftingTimeRemainingSubtitleId = "craftingTimeRemainingSubtitle"
 
 //ITEM CARD
 const itemCardButtonNextRecipeIdSuffix = "_nextRecipe"
@@ -123,9 +125,107 @@ const craftCardsMinimumHeightPx = 280
 let gTrackedItems = {};
 let gSelectedItems = [];
 let gSelectedTreeCollapsedKeys = new Set();
+let gMaterialProgressByKey = {};
 let fromScratch = false;
 let mainGrid = null;
 let gCraftCardHeightSyncResizeHandler = null;
+
+function normalizeMaterialProgressQuantity(value, fallback = 0) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+        return fallback;
+    }
+
+    return Math.floor(parsed);
+}
+
+function loadMaterialsProgress() {
+    try {
+        const parsed = JSON.parse(localStorage.getItem(materialsProgressStorageKey) || "{}");
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+            gMaterialProgressByKey = {};
+            return;
+        }
+
+        const out = {};
+        for (const [key, value] of Object.entries(parsed)) {
+            if (!key || !value || typeof value !== "object") continue;
+
+            const haveQty = normalizeMaterialProgressQuantity(value.haveQty, 0);
+            const originalQty = normalizeMaterialProgressQuantity(value.originalQty, haveQty);
+            const isChecked = Boolean(value.isChecked);
+
+            out[key] = { haveQty, originalQty, isChecked };
+        }
+
+        gMaterialProgressByKey = out;
+    } catch {
+        gMaterialProgressByKey = {};
+    }
+}
+
+function saveMaterialsProgress() {
+    localStorage.setItem(materialsProgressStorageKey, JSON.stringify(gMaterialProgressByKey));
+}
+
+function normalizeMaterialCheckKey(materialName = "") {
+    return String(materialName).trim().toLowerCase();
+}
+
+function getMaterialProgress(materialName = "") {
+    const key = normalizeMaterialCheckKey(materialName);
+    return gMaterialProgressByKey[key] || { haveQty: 0, originalQty: 0, isChecked: false };
+}
+
+function setMaterialProgress(materialName = "", nextProgress = {}) {
+    const key = normalizeMaterialCheckKey(materialName);
+    if (!key) return;
+
+    const current = getMaterialProgress(materialName);
+    const haveQty = normalizeMaterialProgressQuantity(nextProgress.haveQty, current.haveQty);
+    const originalQty = normalizeMaterialProgressQuantity(nextProgress.originalQty, current.originalQty);
+    const isChecked = Boolean(nextProgress.isChecked);
+
+    gMaterialProgressByKey[key] = { haveQty, originalQty, isChecked };
+    saveMaterialsProgress();
+}
+
+function isMaterialChecked(materialName = "", requiredQty = 0) {
+    const progress = getMaterialProgress(materialName);
+    const required = normalizeMaterialProgressQuantity(requiredQty, 0);
+    if (required > 0 && progress.haveQty >= required) {
+        return true;
+    }
+
+    return !!progress.isChecked;
+}
+
+function toggleMaterialChecked(materialName = "", requiredQty = 0) {
+    const key = normalizeMaterialCheckKey(materialName);
+    if (!key) return getMaterialProgress(materialName);
+
+    const progress = getMaterialProgress(materialName);
+    const required = normalizeMaterialProgressQuantity(requiredQty, 0);
+
+    if (!progress.isChecked) {
+        const next = {
+            haveQty: required,
+            originalQty: progress.haveQty,
+            isChecked: true,
+        };
+        setMaterialProgress(materialName, next);
+        return next;
+    }
+
+    const restoredQty = normalizeMaterialProgressQuantity(progress.originalQty, 0);
+    const next = {
+        haveQty: restoredQty,
+        originalQty: restoredQty,
+        isChecked: false,
+    };
+    setMaterialProgress(materialName, next);
+    return next;
+}
 
 function loadSelectedTreeCollapsedKeys() {
     try {
@@ -369,6 +469,10 @@ function setupRecursiveToggleButton() {
     button.addEventListener("click", () => {
         const nextState = !isRecursiveModeEnabled();
         setRecursiveModeEnabled(nextState);
+        if (nextState) {
+            gSelectedTreeCollapsedKeys.clear();
+            saveSelectedTreeCollapsedKeys();
+        }
         updateView();
     });
 }
@@ -577,7 +681,8 @@ function addCardCraftingTime(baseElement){
     let elementClass = "", elementId = "", title = "", isSubtitle = true;
 
     appendTitle(cardBase, elementClass = elementClassCardTitle, elementId = "", title = pageCraftsCraftingTimeTitle)
-    appendTitle(cardBase, elementClass = elementClassCardSubtitle, elementId = pageCraftsCraftingTimeSubtitleId, title = "You are going to need x minute(s)", isSubtitle = true)
+    appendTitle(cardBase, elementClass = elementClassCardSubtitle, elementId = pageCraftsCraftingTimeSubtitleId, title = "Total: x minute(s)", isSubtitle = true)
+    appendTitle(cardBase, elementClass = elementClassCardSubtitle, elementId = pageCraftsCraftingTimeRemainingSubtitleId, title = "Remaining: x minute(s)", isSubtitle = true)
 }
 
 function addCardTools(baseElement){
@@ -950,6 +1055,34 @@ function getCraftingTime(selectedItems = getSelectedItems()){
     }
 
     return totalTime;
+}
+
+function getCheckedMaterialsCraftingTime(selectedItems = getSelectedItems()) {
+    let checkedTime = 0;
+
+    for (const item of selectedItems) {
+        const itemName = item[markerTextContentProperty] || "";
+        const requiredQty = getSelectedItemQuantity(item);
+        if (!isMaterialChecked(itemName, requiredQty)) {
+            continue;
+        }
+
+        const itemQuantity = getSelectedItemQuantity(item);
+
+        for (const recipeId of item.recipeIds) {
+            const recipe = gAllRecipes.find(r => r.recipeId === recipeId);
+
+            if (item.recipeIds.length > 1 && item.reqRecipeId !== recipeId) {
+                continue;
+            }
+
+            if (recipe) {
+                checkedTime += (recipe[itemPropertyCraftingTime] || 0) * getCraftRunsForQuantity(recipe, itemQuantity, item.itemId);
+            }
+        }
+    }
+
+    return checkedTime;
 }
 
 function getMaterialListFromSelectedItems(selectedItems = getSelectedItems()){
@@ -1552,15 +1685,137 @@ function populateMaterialsList(materialsList = document.getElementById(pageCraft
 
     let materialsNeeded = getMaterialListFromSelectedItems(gSelectedItems);
     for (const materialName in materialsNeeded){
-        let qty = materialsNeeded[materialName].qty || 0;
-        let textContent = `${materialName}`;
-        let subtextContent = `x ${qty}`;
-        let textHref = `${recipePageBaseHref}${materialsNeeded[materialName].recipeId}`;
-        const materialLink = addEntryToList(materialsList, textContent, textHref, undefined, subtextContent, pageCraftsCardStyleQuantity);
-        if (materialLink) {
-            materialLink.title = formatMaterialBreakdownTooltip(materialName, materialsNeeded[materialName]);
-            materialLink.dataset.materialBreakdown = JSON.stringify(materialsNeeded[materialName].breakdown || []);
+        let qty = normalizeMaterialProgressQuantity(materialsNeeded[materialName].qty || 0, 0);
+        const materialProgress = getMaterialProgress(materialName);
+        const isChecked = isMaterialChecked(materialName, qty);
+
+        const listItem = document.createElement("li");
+        const materialRow = document.createElement("div");
+        materialRow.classList.add("materials-check-item");
+        materialRow.title = formatMaterialBreakdownTooltip(materialName, materialsNeeded[materialName]);
+
+        const nameSpan = document.createElement("span");
+        nameSpan.classList.add("materials-check-name");
+        nameSpan.textContent = materialName;
+        nameSpan.setAttribute("role", "button");
+        nameSpan.tabIndex = 0;
+        nameSpan.setAttribute("aria-label", `Toggle completion for ${materialName}`);
+        nameSpan.setAttribute("aria-pressed", isChecked ? "true" : "false");
+
+        const haveInput = document.createElement("input");
+        haveInput.type = "number";
+        haveInput.min = "0";
+        haveInput.step = "1";
+        haveInput.inputMode = "numeric";
+        haveInput.classList.add("materials-have-input");
+        haveInput.value = String(normalizeMaterialProgressQuantity(materialProgress.haveQty, 0));
+        haveInput.setAttribute("aria-label", `Quantity you have for ${materialName}`);
+
+        const quantityPrefix = document.createElement("span");
+        quantityPrefix.classList.add(pageCraftsCardStyleQuantity, "materials-qty-prefix");
+        quantityPrefix.textContent = "x";
+
+        const quantityDivider = document.createElement("span");
+        quantityDivider.classList.add(pageCraftsCardStyleQuantity, "materials-qty-divider");
+        quantityDivider.textContent = "/";
+
+        const totalQty = document.createElement("span");
+        totalQty.classList.add(pageCraftsCardStyleQuantity, "materials-qty-total");
+        totalQty.textContent = String(qty);
+
+        const haveWrapper = document.createElement("div");
+        haveWrapper.classList.add("materials-have-wrapper");
+
+        const haveInputShell = document.createElement("div");
+        haveInputShell.classList.add("materials-have-input-shell");
+        haveInputShell.appendChild(haveInput);
+
+        const haveStepper = document.createElement("div");
+        haveStepper.classList.add("materials-have-stepper");
+
+        const haveDecrementButton = document.createElement("button");
+        haveDecrementButton.type = "button";
+        haveDecrementButton.classList.add("materials-have-hover-button", "is-minus", elementClassButton);
+        haveDecrementButton.setAttribute("aria-label", `Decrease have quantity for ${materialName}`);
+        haveDecrementButton.textContent = "-";
+
+        const haveIncrementButton = document.createElement("button");
+        haveIncrementButton.type = "button";
+        haveIncrementButton.classList.add("materials-have-hover-button", "is-plus", elementClassButton);
+        haveIncrementButton.setAttribute("aria-label", `Increase have quantity for ${materialName}`);
+        haveIncrementButton.textContent = "+";
+
+        haveStepper.appendChild(haveDecrementButton);
+        haveStepper.appendChild(haveIncrementButton);
+        haveInputShell.appendChild(haveStepper);
+
+        haveWrapper.appendChild(quantityPrefix);
+        haveWrapper.appendChild(haveInputShell);
+        haveWrapper.appendChild(quantityDivider);
+        haveWrapper.appendChild(totalQty);
+
+        if (isChecked) {
+            materialRow.classList.add("is-checked");
         }
+
+        const applyMaterialHaveQuantity = (nextHaveQtyRaw) => {
+            const nextHaveQty = normalizeMaterialProgressQuantity(nextHaveQtyRaw, 0);
+            haveInput.value = String(nextHaveQty);
+
+            const nextCheckedState = nextHaveQty >= qty;
+            setMaterialProgress(materialName, {
+                haveQty: nextHaveQty,
+                originalQty: nextHaveQty,
+                isChecked: nextCheckedState,
+            });
+
+            materialRow.classList.toggle("is-checked", nextCheckedState);
+            nameSpan.setAttribute("aria-pressed", nextCheckedState ? "true" : "false");
+            initCraftingTimeCard();
+        };
+
+        const toggleMaterialCompletion = () => {
+            const nextProgress = toggleMaterialChecked(materialName, qty);
+            haveInput.value = String(nextProgress.haveQty);
+            const nextCheckedState = isMaterialChecked(materialName, qty);
+            materialRow.classList.toggle("is-checked", nextCheckedState);
+            nameSpan.setAttribute("aria-pressed", nextCheckedState ? "true" : "false");
+            initCraftingTimeCard();
+        };
+
+        nameSpan.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            toggleMaterialCompletion();
+        });
+
+        nameSpan.addEventListener("keydown", (event) => {
+            if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                toggleMaterialCompletion();
+            }
+        });
+
+        haveInput.addEventListener("change", () => {
+            applyMaterialHaveQuantity(haveInput.value);
+        });
+
+        haveDecrementButton.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            applyMaterialHaveQuantity(normalizeMaterialProgressQuantity(haveInput.value, 0) - 1);
+        });
+
+        haveIncrementButton.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            applyMaterialHaveQuantity(normalizeMaterialProgressQuantity(haveInput.value, 0) + 1);
+        });
+
+        materialRow.appendChild(nameSpan);
+        materialRow.appendChild(haveWrapper);
+        listItem.appendChild(materialRow);
+        materialsList.appendChild(listItem);
     }
 }
 
@@ -1618,20 +1873,14 @@ function initToolsCard(){
 }
 
 function initCraftingTimeCard(){
-    // TO DO: Calculate crafting time based on selected items
     let craftingTimeSubtitle = document.getElementById(pageCraftsCraftingTimeSubtitleId)
+    let craftingTimeRemainingSubtitle = document.getElementById(pageCraftsCraftingTimeRemainingSubtitleId)
     let totalTime = getCraftingTime(gSelectedItems)
+    let checkedTime = getCheckedMaterialsCraftingTime(gSelectedItems)
+    let remainingTime = Math.max(0, totalTime - checkedTime)
 
-    if (totalTime === 0){
-        craftingTimeSubtitle.textContent = `You need no crafting time!`
-        return;
-    } else if (totalTime === 1){
-        craftingTimeSubtitle.textContent = `You need ${totalTime} minute of crafting time. `;
-        return;
-    } else {
-        craftingTimeSubtitle.textContent = `You need ${totalTime} minutes of crafting time. `;
-        return;
-    }
+    craftingTimeSubtitle.textContent = `Total: ${totalTime} minute${totalTime === 1 ? "" : "s"}`;
+    craftingTimeRemainingSubtitle.textContent = `Remaining: ${remainingTime} minute${remainingTime === 1 ? "" : "s"}`;
 }
 
 function initMaterialsCard(){
@@ -1680,6 +1929,20 @@ export function updateView() {
     if (isRecursiveModeEnabled()) {
         gTrackedItems = recomputeRecursiveMarks(gTrackedItems, gAllItems, gAllRecipes);
         saveMarks(gTrackedItems);
+    } else {
+        let didRemoveAutoItems = false;
+
+        for (const key of Object.keys(gTrackedItems)) {
+            const entry = gTrackedItems[key];
+            if (entry?.recursiveSource === RECURSIVE_SOURCE_AUTO) {
+                delete gTrackedItems[key];
+                didRemoveAutoItems = true;
+            }
+        }
+
+        if (didRemoveAutoItems) {
+            saveMarks(gTrackedItems);
+        }
     }
 
     gSelectedItems = getSelectedItems();
@@ -1718,6 +1981,7 @@ export function initCraftPage() {
     gTrackedItems = loadMarks()
     gSelectedItems = getSelectedItems(gTrackedItems);
     loadSelectedTreeCollapsedKeys();
+    loadMaterialsProgress();
 
     //Base Grid Setup
     mainGrid = addGridBase(baseElement)
