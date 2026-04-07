@@ -1,4 +1,4 @@
-import { loadMarks } from "./rightClickMenu.js"
+import { loadMarks, saveMarks } from "./rightClickMenu.js"
 import { applyMarksToAll } from "./rightClickMenu.js";
 import { gAllRecipes } from "./app.js";
 
@@ -18,6 +18,8 @@ const pageCraftsCardStyleCraftingTime = "CraftingTime"
 const pageCraftsCardStyleTools = "Tools"
 const pageCraftsCardStyleSkills = "Skills"
 const pageCraftsCardStyleMaterials = "Materials"
+const pageCraftsGridStyleCraftingTimeSpacerLeft = "CraftingTimeSpacerLeft"
+const pageCraftsGridStyleCraftingTimeSpacerRight = "CraftingTimeSpacerRight"
 const pageCraftsCardStyleQuantity = "qty"
 
 const elementClassCard = "card"
@@ -49,6 +51,7 @@ const itemPropertyRecipeId = "recipeId"
 const markerPropertyFavorited = "favorited"
 const markerPropertyCategory = "category"
 const markerPropertySelected = "selected"
+const markerPropertyPinned = "pinned"
 
 //PRESET CARDS
 //TRACKED
@@ -62,6 +65,15 @@ const markerTextContentProperty = "textContent"
 //SELECTED
 const pageCraftsSelectedTitle = "Selected"
 const pageCraftsSelectedListId = "selectedList"
+const pageCraftsSelectedListItemClass = "selected-item"
+const pageCraftsSelectedLabelClass = "selected-item-label"
+const pageCraftsSelectedQuantityControlClass = "selected-qty-control"
+const pageCraftsSelectedQuantityInputClass = "selected-qty-input"
+const pageCraftsSelectedQuantityStepperClass = "selected-qty-stepper"
+const pageCraftsSelectedQuantityHoverButtonClass = "selected-qty-hover-button"
+const pageCraftsSelectedQuantityHoverButtonMinusClass = "is-minus"
+const pageCraftsSelectedQuantityHoverButtonPlusClass = "is-plus"
+const pageCraftsSelectedPinButtonClass = "selected-pin-button"
 
 //SKILLS
 const pageCraftsSkillsTitle = "Skills"
@@ -95,11 +107,175 @@ const itemCardCraftingTimeSubtitleIdSuffix = "_craftingTimeSubtitle"
 const itemCardCraftingTimeValueIdSuffix = "_craftingTimeValue"
 const itemCardMaterialsSubtitleIdSuffix = "_materialsSubtitle"
 const itemCardNavContainerIdSuffix = "_navContainer"
+const craftCardsDefaultMaxHeight = "75vh"
 
 let gTrackedItems = {};
 let gSelectedItems = [];
 let fromScratch = false;
 let mainGrid = null;
+let gCraftCardHeightSyncResizeHandler = null;
+
+const presetCraftGridAreas = [
+    pageCraftsCardStyleTracked,
+    pageCraftsCardStyleSelected,
+    pageCraftsCardStyleToolbar,
+    pageCraftsCardStyleCraftingTime,
+    pageCraftsCardStyleTools,
+    pageCraftsCardStyleSkills,
+    pageCraftsCardStyleMaterials
+];
+
+function createDebouncedHandler(callback, delay = 120) {
+    let timeoutId = null;
+    return () => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(callback, delay);
+    };
+}
+
+function getCraftCardByGridArea(gridAreaName) {
+    if (!mainGrid) return null;
+
+    return Array.from(mainGrid.getElementsByClassName(elementClassCard)).find(card => card.style.gridArea === gridAreaName) || null;
+}
+
+function syncCraftSummaryCardHeights() {
+    const skillsCard = getCraftCardByGridArea(pageCraftsCardStyleSkills);
+    const toolsCard = getCraftCardByGridArea(pageCraftsCardStyleTools);
+    if (!skillsCard || !toolsCard) return;
+
+    const referenceHeight = Math.max(skillsCard.scrollHeight, toolsCard.scrollHeight);
+    const maxHeight = referenceHeight > 0 ? `${referenceHeight}px` : craftCardsDefaultMaxHeight;
+
+    const syncedCards = [
+        getCraftCardByGridArea(pageCraftsCardStyleSelected),
+        getCraftCardByGridArea(pageCraftsCardStyleSkills),
+        getCraftCardByGridArea(pageCraftsCardStyleTools),
+        getCraftCardByGridArea(pageCraftsCardStyleTracked),
+        getCraftCardByGridArea(pageCraftsCardStyleMaterials)
+    ];
+
+    for (const card of syncedCards) {
+        if (!card) continue;
+        card.style.height = maxHeight;
+        card.style.maxHeight = maxHeight;
+    }
+}
+
+function getIndividualRecipeCards() {
+    if (!mainGrid) return [];
+
+    return Array.from(mainGrid.getElementsByClassName(elementClassCard)).filter(card => {
+        return !presetCraftGridAreas.includes(card.style.gridArea);
+    });
+}
+
+function syncIndividualRecipeCardSizes() {
+    const recipeCards = getIndividualRecipeCards();
+    if (recipeCards.length === 0) return;
+
+    for (const card of recipeCards) {
+        card.style.height = "";
+    }
+
+    const smallestHeight = Math.min(...recipeCards.map(card => card.offsetHeight));
+    const targetHeight = `${smallestHeight}px`;
+
+    for (const card of recipeCards) {
+        card.style.height = targetHeight;
+        card.style.maxHeight = targetHeight;
+    }
+}
+
+function getSelectedItemMarkKey(selectedItem) {
+    for (const key in gTrackedItems) {
+        const trackedItem = gTrackedItems[key];
+        if (!trackedItem?.[markerPropertySelected]) continue;
+
+        if (selectedItem.itemId && trackedItem.itemId === selectedItem.itemId) {
+            return key;
+        }
+
+        if (trackedItem[markerTextContentProperty] === selectedItem[markerTextContentProperty]) {
+            return key;
+        }
+    }
+
+    return "";
+}
+
+function setPinnedState(markKey, isPinned) {
+    if (!markKey || !gTrackedItems[markKey]) return;
+
+    gTrackedItems[markKey][markerPropertyPinned] = isPinned;
+    saveMarks(gTrackedItems);
+}
+
+function normalizeSelectedQuantity(quantity) {
+    const parsedQuantity = Number(quantity);
+
+    if (!Number.isFinite(parsedQuantity) || parsedQuantity < 1) {
+        return 1;
+    }
+
+    return Math.floor(parsedQuantity);
+}
+
+function getSelectedItemQuantity(item) {
+    return normalizeSelectedQuantity(item?.qty);
+}
+
+function setSelectedItemQuantity(item, quantity) {
+    const markKey = getSelectedItemMarkKey(item);
+    if (!markKey || !gTrackedItems[markKey]) return;
+
+    gTrackedItems[markKey].qty = normalizeSelectedQuantity(quantity);
+    saveMarks(gTrackedItems);
+    updateView();
+}
+
+function createPinToggleButton(item, itemMarkKey, options = {}) {
+    const isPinned = !!gTrackedItems[itemMarkKey]?.[markerPropertyPinned];
+    const pinButton = document.createElement("button");
+    const isCardButton = !!options.cardButton;
+    const pinColor = isPinned ? "var(--textYellow)" : "rgba(242,242,242,0.45)";
+
+    pinButton.classList.add(elementClassButton);
+    pinButton.type = "button";
+    pinButton.setAttribute("aria-label", isPinned ? "Unpin item" : "Pin item");
+    pinButton.title = isPinned ? "Unpin item" : "Pin item";
+    pinButton.textContent = "⚲";
+    pinButton.style.color = pinColor;
+    pinButton.style.padding = "0.1rem 0.45rem";
+    pinButton.style.fontSize = "0.95rem";
+    pinButton.style.whiteSpace = "nowrap";
+    pinButton.style.display = "inline-flex";
+    pinButton.style.alignItems = "center";
+    pinButton.style.justifyContent = "center";
+    pinButton.style.alignSelf = "flex-end";
+
+    if (isCardButton) {
+        pinButton.style.position = "absolute";
+        pinButton.style.top = "0.45rem";
+        pinButton.style.right = "0.45rem";
+        pinButton.style.zIndex = "2";
+        pinButton.style.padding = "0.05rem 0.25rem";
+        pinButton.style.fontSize = "0.8rem";
+        pinButton.style.lineHeight = "1";
+        pinButton.style.alignSelf = "auto";
+    }
+
+    pinButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (!itemMarkKey) return;
+        setPinnedState(itemMarkKey, !isPinned);
+        updateView();
+    });
+
+    return pinButton;
+}
 
 // CRAFTING.HTML PAGE FUNCTIONS
 // - BUTTON FUNCTIONALITY
@@ -129,7 +305,7 @@ function createCard(baseElement, cardClassName = elementClassCard, cardElementSt
     cardBase.style = ("grid-area: " + cardElementStyle) || "";
     cardBase.justifyContent = "center";
     cardBase.style.maxWidth = "None";
-    cardBase.style.maxHeight = "75vh";
+    cardBase.style.maxHeight = craftCardsDefaultMaxHeight;
     cardBase.style.overflowY = "auto";
 
     baseElement.appendChild(cardBase);
@@ -272,15 +448,24 @@ function addGridBase(baseElement, elementClass = elementClassGrid, elementId = "
     //Arrange Base Grid
     mainGrid.style.gridTemplateAreas = `
     "Selected Toolbar Toolbar Toolbar Tracked"
-    "Selected CraftingTime CraftingTime Materials Tracked"
     "Selected Skills Tools Materials Tracked"
+    "Selected CraftingTimeSpacerLeft CraftingTime CraftingTimeSpacerRight Tracked"
     `;
     mainGrid.style.gridTemplateColumns = "1fr 1fr 1fr 1fr 1fr";
-    mainGrid.style.gridTemplateRows = "5rem 7rem auto";
+    mainGrid.style.gridTemplateRows = "5rem auto auto";
     mainGrid.style.gridAutoRows = "auto";
+    mainGrid.style.alignItems = "start";
     mainGrid.style.overflowY = "auto";
 
     return mainGrid;
+}
+
+function addCraftingTimeRowSpacer(baseElement, gridAreaName) {
+    const spacer = document.createElement("div");
+    spacer.style.gridArea = gridAreaName;
+    spacer.style.visibility = "hidden";
+    spacer.style.pointerEvents = "none";
+    baseElement.appendChild(spacer);
 }
 
 
@@ -376,6 +561,12 @@ function updateItemCard(baseElement, item, recipeId = item.reqRecipeId){
         return;
     }
 
+    const itemMarkKey = getSelectedItemMarkKey(item);
+    if (itemMarkKey) {
+        const existingPinButton = document.getElementById(`${item.itemId}_pinToggle`);
+        if (existingPinButton) existingPinButton.remove();
+    }
+
     // Title with Recipe Navigation
     if (numRecipes > 1) {
         if (!document.getElementById(`${item.itemId}${itemCardNavContainerIdSuffix}`)){
@@ -393,6 +584,13 @@ function updateItemCard(baseElement, item, recipeId = item.reqRecipeId){
         }
 
         document.getElementById(`${item.itemId}${itemCardTitleIdSuffix}`).textContent = `${item.textContent} (${item.recipeIds.indexOf(recipeId) + 1}/${numRecipes})`
+
+        if (itemMarkKey && !document.getElementById(`${item.itemId}_pinToggle`)) {
+            cardBase.style.position = "relative";
+            const pinButton = createPinToggleButton(item, itemMarkKey, { cardButton: true });
+            pinButton.id = `${item.itemId}_pinToggle`;
+            cardBase.appendChild(pinButton);
+        }
 
         // Remove existing event listeners by replacing the buttons with clones
         const prevBtnId = `${item.itemId}${itemCardButtonPrevRecipeIdSuffix}`;
@@ -441,6 +639,13 @@ function updateItemCard(baseElement, item, recipeId = item.reqRecipeId){
     } else {
         if (!document.getElementById(`${item.itemId}${itemCardTitleIdSuffix}`)){
             appendTitle(cardBase, elementClass = elementClassCardTitle, elementId = `${item.itemId}${itemCardTitleIdSuffix}`, title = item.textContent)
+        }
+
+        if (itemMarkKey && !document.getElementById(`${item.itemId}_pinToggle`)) {
+            cardBase.style.position = "relative";
+            const pinButton = createPinToggleButton(item, itemMarkKey, { cardButton: true });
+            pinButton.id = `${item.itemId}_pinToggle`;
+            cardBase.appendChild(pinButton);
         }
     }
 
@@ -500,11 +705,18 @@ function getSelectedItems(){
         let item = gTrackedItems[key];
         let isSelected = item[markerPropertySelected];
 
-        gSelectedItems.find(i => i.itemId === item.itemId)? 
-            item.reqRecipeId = gSelectedItems.find(i => i.itemId === item.itemId).reqRecipeId : 
-            item.reqRecipeId = item.recipeIds && item.recipeIds.length > 0 ? 
-                item.recipeIds[0] : 
-                undefined;
+        const previouslySelectedItem = gSelectedItems.find(i => i.itemId === item.itemId);
+        const itemRecipeIds = Array.isArray(item.recipeIds) ? item.recipeIds : [];
+
+        if (previouslySelectedItem?.reqRecipeId) {
+            item.reqRecipeId = previouslySelectedItem.reqRecipeId;
+        } else if (item.reqRecipeId && itemRecipeIds.includes(item.reqRecipeId)) {
+            item.reqRecipeId = item.reqRecipeId;
+        } else {
+            item.reqRecipeId = itemRecipeIds.length > 0 ? itemRecipeIds[0] : undefined;
+        }
+
+        item.qty = normalizeSelectedQuantity(previouslySelectedItem?.qty ?? item.qty ?? 1);
 
         if (isSelected){
             output.push(
@@ -632,6 +844,8 @@ function getCraftingTime(selectedItems = getSelectedItems()){
     let totalTime = 0;
     
     for (const item of selectedItems){
+        const itemQuantity = getSelectedItemQuantity(item);
+
         for (const recipeId of item.recipeIds){
             const recipe = gAllRecipes.find(r => r.recipeId === recipeId);
 
@@ -642,7 +856,7 @@ function getCraftingTime(selectedItems = getSelectedItems()){
             }
 
             if (recipe){
-                totalTime += recipe[itemPropertyCraftingTime] || 0;
+                totalTime += (recipe[itemPropertyCraftingTime] || 0) * itemQuantity;
             }
         }
     }
@@ -655,6 +869,7 @@ function getMaterialListFromSelectedItems(selectedItems = getSelectedItems()){
     //only uses the first recipe in recipeIds for now for each item
 
     for (const item of selectedItems){
+        const itemQuantity = getSelectedItemQuantity(item);
         let recipeId = item.reqRecipeId;
         const recipe = gAllRecipes.find(r => r.recipeId === recipeId);
         if (recipe){
@@ -663,7 +878,7 @@ function getMaterialListFromSelectedItems(selectedItems = getSelectedItems()){
                 let materialQuantity = material[itemPropertyMaterialsQuantity];
 
                 output[materialName] = output[materialName] || {qty: 0};
-                output[materialName].qty += materialQuantity;
+                output[materialName].qty += materialQuantity * itemQuantity;
                 output[materialName].recipeId = recipeId;
             }
         }
@@ -678,7 +893,96 @@ function populateSelectedList(){
     selectedListElement.innerHTML = "";
 
     for (const item of gSelectedItems){
-        addEntryToList(selectedListElement, item[markerTextContentProperty])
+        const itemQuantity = getSelectedItemQuantity(item);
+        const itemMarkKey = getSelectedItemMarkKey(item);
+        const quantityControlIdBase = (itemMarkKey || item.itemId || item[markerTextContentProperty] || "selected").toString().replace(/\s+/g, "_");
+
+        const listEntry = document.createElement("li");
+        listEntry.classList.add(pageCraftsSelectedListItemClass);
+
+        const isPinned = !!gTrackedItems[itemMarkKey]?.[markerPropertyPinned];
+
+        const pinButton = document.createElement("button");
+        pinButton.classList.add(elementClassButton, pageCraftsSelectedPinButtonClass);
+        pinButton.type = "button";
+        pinButton.setAttribute("aria-label", isPinned ? "Unpin item" : "Pin item");
+        pinButton.title = isPinned ? "Unpin item" : "Pin item";
+        pinButton.textContent = "⚲";
+        pinButton.style.color = isPinned ? "var(--textYellow)" : "rgba(242,242,242,0.45)";
+
+        pinButton.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+
+            if (!itemMarkKey) return;
+            setPinnedState(itemMarkKey, !isPinned);
+            updateView();
+        });
+
+        const quantityControl = document.createElement("div");
+        quantityControl.classList.add(pageCraftsSelectedQuantityControlClass);
+
+        const itemLink = document.createElement("a");
+        itemLink.classList.add(pageCraftsSelectedLabelClass);
+        itemLink.textContent = item[markerTextContentProperty] || "Unknown Item";
+
+        const quantityInput = document.createElement("input");
+        quantityInput.classList.add(pageCraftsSelectedQuantityInputClass);
+        quantityInput.id = `${quantityControlIdBase}_qty`;
+        quantityInput.type = "number";
+        quantityInput.min = "1";
+        quantityInput.step = "1";
+        quantityInput.inputMode = "numeric";
+        quantityInput.value = String(itemQuantity);
+        quantityInput.setAttribute("aria-label", `Quantity for ${item[markerTextContentProperty] || "selected item"}`);
+
+        quantityInput.addEventListener("change", () => {
+            setSelectedItemQuantity(item, quantityInput.value);
+        });
+
+        const quantityStepper = document.createElement("div");
+        quantityStepper.classList.add(pageCraftsSelectedQuantityStepperClass);
+
+        const decrementButton = document.createElement("button");
+        decrementButton.classList.add(
+            elementClassButton,
+            pageCraftsSelectedQuantityHoverButtonClass,
+            pageCraftsSelectedQuantityHoverButtonMinusClass,
+        );
+        decrementButton.type = "button";
+        decrementButton.setAttribute("aria-label", `Decrease quantity for ${item[markerTextContentProperty] || "selected item"}`);
+        decrementButton.textContent = "-";
+
+        const incrementButton = document.createElement("button");
+        incrementButton.classList.add(
+            elementClassButton,
+            pageCraftsSelectedQuantityHoverButtonClass,
+            pageCraftsSelectedQuantityHoverButtonPlusClass,
+        );
+        incrementButton.type = "button";
+        incrementButton.setAttribute("aria-label", `Increase quantity for ${item[markerTextContentProperty] || "selected item"}`);
+        incrementButton.textContent = "+";
+
+        decrementButton.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setSelectedItemQuantity(item, normalizeSelectedQuantity(quantityInput.value) - 1);
+        });
+
+        incrementButton.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setSelectedItemQuantity(item, normalizeSelectedQuantity(quantityInput.value) + 1);
+        });
+
+        quantityStepper.appendChild(decrementButton);
+        quantityStepper.appendChild(incrementButton);
+        quantityControl.appendChild(quantityInput);
+        quantityControl.appendChild(quantityStepper);
+        listEntry.appendChild(quantityControl);
+        listEntry.appendChild(itemLink);
+        listEntry.appendChild(pinButton);
+        selectedListElement.appendChild(listEntry);
     }
 
     applyMarksToAll();
@@ -817,20 +1121,24 @@ function initMaterialsCard(){
 }
 
 function initIndividualItemCards(){
+    const pinnedSelectedItems = gSelectedItems.filter(item => {
+        const markKey = getSelectedItemMarkKey(item);
+        return !!gTrackedItems[markKey]?.[markerPropertyPinned];
+    });
 
     //Generic Card Creation
     //Clear existing cards
     let existingCards = Array.from(mainGrid.getElementsByClassName(elementClassCard)).filter(card => {
-        return ![pageCraftsCardStyleTracked, pageCraftsCardStyleSelected, pageCraftsCardStyleToolbar, pageCraftsCardStyleCraftingTime, pageCraftsCardStyleTools, pageCraftsCardStyleSkills, pageCraftsCardStyleMaterials].includes(card.style.gridArea);
+        return !presetCraftGridAreas.includes(card.style.gridArea);
     });
 
     for (const card of existingCards){
-        if (!(gSelectedItems.map(i => i.itemId).includes(card.id))){
+        if (!(pinnedSelectedItems.map(i => i.itemId).includes(card.id))){
             card.remove();
         }
     }
 
-    for (const item of gSelectedItems){
+    for (const item of pinnedSelectedItems){
         updateItemCard(mainGrid, item);
     }
 
@@ -872,6 +1180,11 @@ export function updateView() {
 
     //Individual Item Cards Setup
     initIndividualItemCards();
+
+    requestAnimationFrame(() => {
+        syncCraftSummaryCardHeights();
+        syncIndividualRecipeCardSizes();
+    });
 }
 
 export function initCraftPage() {
@@ -887,6 +1200,8 @@ export function initCraftPage() {
     addCardSelected(mainGrid)
     addCardToolbar(mainGrid)
     addCardCraftingTime(mainGrid)
+    addCraftingTimeRowSpacer(mainGrid, pageCraftsGridStyleCraftingTimeSpacerLeft)
+    addCraftingTimeRowSpacer(mainGrid, pageCraftsGridStyleCraftingTimeSpacerRight)
     addCardTools(mainGrid)
     addCardSkills(mainGrid)
     addCardMaterials(mainGrid)
@@ -897,6 +1212,16 @@ export function initCraftPage() {
 
     //Update Viewport
     updateView();
+
+    if (!gCraftCardHeightSyncResizeHandler) {
+        gCraftCardHeightSyncResizeHandler = createDebouncedHandler(() => {
+            requestAnimationFrame(() => {
+                syncCraftSummaryCardHeights();
+                syncIndividualRecipeCardSizes();
+            });
+        });
+        window.addEventListener("resize", gCraftCardHeightSyncResizeHandler);
+    }
 
     
 

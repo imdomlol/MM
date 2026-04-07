@@ -11,9 +11,11 @@ export let gAllRecipes = [];
 export let gAllItems = [];
 let gAllPlayers = [];
 let gEqualizeCardSizesFunction = null;
+let gCurrentRecipeDetailSelection = null;
 const RECIPES_FILEPATH = "./data/recipes.json"
 const ITEMS_FILEPATH = "./data/items.json"
 const INVENTORIES_FILEPATH = "./data/playerInventories.json"
+const USER_MARKS_STORAGE_KEY = "mm_user_marks_v1"
 
 function createDebouncedResizeHandler() {
     let resizeTimeout = null;
@@ -339,6 +341,57 @@ function getItemInfo(item){
         });
 }
 
+function saveCurrentRecipeToCraftSelection() {
+    const errorEl = document.getElementById("Error");
+
+    if (!gCurrentRecipeDetailSelection?.item) {
+        if (errorEl) errorEl.textContent = "Unable to add item yet. Please wait for the recipe to finish loading.";
+        return false;
+    }
+
+    try {
+        const selectedItem = gCurrentRecipeDetailSelection.item;
+        const selectedRecipeId = gCurrentRecipeDetailSelection.selectedRecipeId;
+        const recipeIds = Array.isArray(selectedItem.recipeIds) ? selectedItem.recipeIds.filter(Boolean) : [];
+        const key = selectedItem.itemId ? `${selectedItem.itemId}` : `${(selectedItem.name || "").toLowerCase()}`;
+
+        if (!key) {
+            if (errorEl) errorEl.textContent = "Unable to add this item to the crafting list.";
+            return false;
+        }
+
+        let marks = {};
+        try {
+            marks = JSON.parse(localStorage.getItem(USER_MARKS_STORAGE_KEY)) || {};
+        } catch {
+            marks = {};
+        }
+
+        const existingEntry = marks[key] || {};
+        const reqRecipeId = recipeIds.includes(selectedRecipeId) ? selectedRecipeId : (recipeIds[0] || "");
+        const existingQty = Number(existingEntry.qty);
+
+        marks[key] = {
+            ...existingEntry,
+            itemId: selectedItem.itemId || "",
+            recipeIds,
+            textContent: selectedItem.name || existingEntry.textContent || "Unknown Item",
+            favorited: Boolean(existingEntry.favorited),
+            category: existingEntry.category || "",
+            selected: true,
+            reqRecipeId,
+            qty: Number.isFinite(existingQty) && existingQty > 0 ? Math.floor(existingQty) : 1
+        };
+
+        localStorage.setItem(USER_MARKS_STORAGE_KEY, JSON.stringify(marks));
+        if (errorEl) errorEl.textContent = "";
+        return true;
+    } catch (err) {
+        if (errorEl) errorEl.textContent = "Error adding item to crafting list: " + err.message;
+        return false;
+    }
+}
+
 function initRecipeDetailPage() {
     const recipeId = getQueryParam("recipeId");
     const itemId = getQueryParam("itemId");
@@ -350,6 +403,7 @@ function initRecipeDetailPage() {
     let recipeIndex = (parseInt(document.getElementById(pageSearchId)?.value) - 1) || 0;
 
     if (!recipeId && !itemId) {
+        gCurrentRecipeDetailSelection = null;
         const errorEl = document.getElementById(pageErrorId);
         if (errorEl) errorEl.textContent = "No recipeId or itemId provided.";
         return;
@@ -370,12 +424,20 @@ function initRecipeDetailPage() {
                     recipeIndex = recipeIndex % itemInfo.length;
                     const recipeIndexInput = document.getElementById(pageSearchId);
                     if (recipeIndexInput) recipeIndexInput.value = (recipeIndex || 0) + 1;
+                    const activeRecipe = itemInfo[recipeIndex] || {};
+                    const activeRecipeId = activeRecipe.recipeId || recipeId || ((foundItem.recipeIds || [])[0] || "");
+                    gCurrentRecipeDetailSelection = {
+                        item: foundItem,
+                        selectedRecipeId: activeRecipeId
+                    };
+
                     if (itemInfo[recipeIndex].isRecipe) {
                         renderRecipeDetail(itemInfo[recipeIndex]);
                     } else {
                         renderRecipeDetail(itemInfo[recipeIndex]);
                     }
                 } else {
+                    gCurrentRecipeDetailSelection = null;
                     const errorEl = document.getElementById(pageErrorId);
                     if (errorEl) errorEl.textContent = "No recipes found.";
                 }
@@ -383,6 +445,7 @@ function initRecipeDetailPage() {
         }
     })
     .catch(err => {
+        gCurrentRecipeDetailSelection = null;
         const errorEl = document.getElementById(pageErrorId);
         if (errorEl) errorEl.textContent = "Error loading item data: " + err.message;
     });
@@ -506,6 +569,7 @@ document.addEventListener("DOMContentLoaded", () => {
             let pageSearchId = "currentRecipeIndex"
             let pageButtonPreviousRecipe = "prevBtn"
             let pageButtonNextRecipe = "nextBtn"
+            let pageButtonAddToCraft = "addToCraftBtn"
             document.getElementById(pageSearchId).addEventListener("input", initRecipeDetailPage);
             document.getElementById(pageButtonPreviousRecipe).addEventListener("click", () => {
                 const input = document.getElementById(pageSearchId);
@@ -519,6 +583,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 const current = parseInt(input.value) || 1;
                 input.value = current + 1;
                 initRecipeDetailPage();
+            });
+
+            document.getElementById(pageButtonAddToCraft).addEventListener("click", () => {
+                if (saveCurrentRecipeToCraftSelection()) {
+                    window.location.href = "./craft.html";
+                }
             });
         }
 

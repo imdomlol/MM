@@ -15,7 +15,7 @@ export function loadMarks(){
   }
 }
 
-function saveMarks(m){ localStorage.setItem(STORAGE_KEY, JSON.stringify(m));}
+export function saveMarks(m){ localStorage.setItem(STORAGE_KEY, JSON.stringify(m));}
 
 export function getItemKeyFromInfo(info){
   return info.itemId ? `${info.itemId}` : `${info.textContent.toLowerCase()}`;
@@ -162,6 +162,7 @@ menu.addEventListener("click", (e) => {
     favorited: false,
     category: "",
     selected: false,
+    qty: 1,
   }
 
   if(action === "toggle-favorited"){
@@ -170,6 +171,9 @@ menu.addEventListener("click", (e) => {
 
   if(action === "toggle-selected"){
     entry.selected = !entry.selected;
+    if (entry.selected && (!Number.isFinite(Number(entry.qty)) || Number(entry.qty) < 1)) {
+      entry.qty = 1;
+    }
   }
 
   if(action === "set-category"){

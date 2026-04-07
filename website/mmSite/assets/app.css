@@ -698,6 +698,60 @@ input, select, button { font: inherit; }
   margin-inline: auto;
 }
 
+.recipe-toolbar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0;
+  width: max-content;
+  max-width: 100%;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.page > .recipe-toolbar {
+  width: max-content;
+}
+
+.recipe-toolbar-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  width: fit-content;
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(0,0,0,0.18);
+}
+
+.recipe-toolbar .recipe-index-field {
+  min-width: 0;
+  width: auto;
+  flex: 0 0 auto;
+}
+
+.recipe-toolbar .recipe-index-field input.indexText[type="text"] {
+  width: 4ch;
+  min-width: 4ch;
+  max-width: none;
+  text-align: center;
+  padding: 0 6px;
+  border-radius: 999px;
+}
+
+@media (max-width: 640px) {
+  .recipe-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .recipe-toolbar-nav {
+    justify-content: center;
+  }
+}
+
 .recipe-stack {
   display: flex;
   flex-direction: column;
@@ -781,6 +835,12 @@ input, select, button { font: inherit; }
 
 @media (max-width: 640px) {
   .field { min-width: 100%; }
+
+  .recipe-toolbar .recipe-index-field {
+    min-width: 0;
+    width: auto;
+    flex: 0 0 auto;
+  }
 }
 
 /* ---------- Inputs ---------- */
@@ -899,6 +959,119 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus {
   color: var(--muted);
   font-size: 0.85em;
   margin-left: 6px;
+}
+
+.selected-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: 14px;
+}
+
+.selected-item:hover {
+  background: rgba(255,255,255,0.03);
+  border-color: var(--border);
+}
+
+.selected-item-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selected-qty-control {
+  display: inline-flex;
+  position: relative;
+  align-items: center;
+  gap: 0;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  overflow: visible;
+}
+
+.selected-qty-input {
+  width: 3.6ch;
+  min-width: 3.6ch;
+  height: 1.7rem;
+  padding: 0 0.25rem;
+  font-size: 0.85rem;
+  text-align: center;
+  border-radius: 999px;
+  border: 1px solid var(--control-border);
+  background: var(--control-bg);
+  color: var(--text);
+}
+
+.selected-qty-stepper {
+  position: absolute;
+  inset: 0;
+  --qty-hover-offset: 78%;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.selected-item:hover .selected-qty-stepper,
+.selected-item:focus-within .selected-qty-stepper {
+  opacity: 1;
+}
+
+.selected-qty-hover-button {
+  position: absolute;
+  top: 50%;
+  pointer-events: auto;
+  min-width: 1.2rem;
+  height: 1.2rem;
+  padding: 0;
+  line-height: 1;
+  font-size: 0.74rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--control-border);
+  background: var(--control-bg);
+  z-index: 2;
+}
+
+.selected-qty-hover-button.is-minus {
+  left: 0;
+  transform: translate(calc(var(--qty-hover-offset) * -1), -50%);
+}
+
+.selected-qty-hover-button.is-plus {
+  right: 0;
+  transform: translate(var(--qty-hover-offset), -50%);
+}
+
+.selected-pin-button {
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.22rem;
+  font-size: 0.72rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.selected-qty-input::-webkit-outer-spin-button,
+.selected-qty-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.selected-qty-input[type="number"] {
+	appearance: textfield;
+  -moz-appearance: textfield;
 }
 
 /* ---------- Key/Value grid (recipe requirements) ---------- */

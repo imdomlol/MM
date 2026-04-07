@@ -11,22 +11,20 @@
         </video>
         <div id="siteHeader"></div>
         <main class="page" id="recipePage">
-            <div class = toolbar>
-                <a class="btn" href="./recipes.html">Back to List</a>
+            <div class="toolbar recipe-toolbar">
+                <a class="btn" href="./recipes.html" aria-label="Back to list" title="Back to list">←</a>
 
-                <div></div>
-                <div></div>
+                <div class="recipe-toolbar-nav" role="group" aria-label="Recipe navigation controls">
+                    <button class="btn" id="prevBtn">Previous</button>
 
-                <button class="btn" id="prevBtn">Previous</button>
-                <button class="btn" id="nextBtn">Next</button>
+                    <div class="field recipe-index-field">
+                        <input type="text" id="currentRecipeIndex" class="indexText" inputmode="numeric" aria-label="Recipe index">
+                    </div>
 
-                <div></div>
-                <div></div>
-
-                <div class="field">
-                    <label>Recipe Index</label>
-                    <input type="text" id="currentRecipeIndex" class="indexText">
+                    <button class="btn" id="nextBtn">Next</button>
                 </div>
+
+                <button class="btn" id="addToCraftBtn" aria-label="Push to crafting tool" title="Push to crafting tool">↗</button>
             </div>
 
             <div class="Error" id="Error"></div>
