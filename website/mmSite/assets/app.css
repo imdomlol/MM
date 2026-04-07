@@ -959,6 +959,17 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus {
   gap: 8px;
 }
 
+.settings-section {
+  padding: 10px;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: var(--radius-md);
+  background: rgba(8, 10, 18, 0.7);
+}
+
+.settings-section + .settings-section {
+  margin-top: 12px;
+}
+
 .settings-title {
   margin: 0;
   color: var(--textTitle);
@@ -971,6 +982,12 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus {
   color: rgba(242,242,242,0.86);
   font-size: 0.95rem;
   line-height: 1.35;
+}
+
+.settings-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .settings-list {
@@ -1036,6 +1053,11 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus {
 :root[data-theme="light"] .settings-row {
   border: 1px solid rgba(15,23,42,0.18);
   background: rgba(255,255,255,0.92);
+}
+
+:root[data-theme="light"] .settings-section {
+  border: 1px solid rgba(15,23,42,0.15);
+  background: rgba(255,255,255,0.82);
 }
 
 @media (max-width: 640px) {

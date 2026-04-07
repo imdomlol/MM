@@ -820,7 +820,6 @@ function addCardToolbar(baseElement){
 
     appendButton(cardBase, elementClass = elementClassButton, elementId = "testButton", elementText = "Clear")
     appendButton(cardBase, elementClass = elementClassButton, elementId = "test2Button", elementText = "Push")
-    appendButton(cardBase, elementClass = elementClassButton, elementId = toolbarButtonRecursiveId, elementText = "Recursive: OFF")
     appendButton(cardBase, elementClass = elementClassButton, elementId = "toolbarSave", elementText = "Save")
     const settingsButton = appendButton(cardBase, elementClass = elementClassButton, elementId = toolbarButtonSettingsId, elementText = "⚙")
     settingsButton.setAttribute("aria-expanded", "false");
@@ -834,6 +833,28 @@ function addCardToolbar(baseElement){
     settingsMenu.id = toolbarSettingsMenuId;
     settingsMenu.classList.add("craft-settings-menu");
     settingsMenu.hidden = true;
+
+    const toggleSection = document.createElement("section");
+    toggleSection.classList.add("settings-section");
+
+    const toggleSectionTitle = document.createElement("h2");
+    toggleSectionTitle.classList.add("settings-title");
+    toggleSectionTitle.textContent = "Toggle Settings";
+
+    const toggleSectionHint = document.createElement("p");
+    toggleSectionHint.classList.add("settings-hint");
+    toggleSectionHint.textContent = "When enabled, recursive mode will automatically add all sub-recipes of a manually selected recipe";
+
+    const toggleSectionActions = document.createElement("div");
+    toggleSectionActions.classList.add("settings-actions");
+    appendButton(toggleSectionActions, elementClassButton, toolbarButtonRecursiveId, "Recursive: OFF");
+
+    toggleSection.appendChild(toggleSectionTitle);
+    toggleSection.appendChild(toggleSectionHint);
+    toggleSection.appendChild(toggleSectionActions);
+
+    const borrowSection = document.createElement("section");
+    borrowSection.classList.add("settings-section");
 
     const settingsHeader = document.createElement("div");
     settingsHeader.classList.add("settings-header");
@@ -852,9 +873,12 @@ function addCardToolbar(baseElement){
     settingsList.id = toolbarSettingsListId;
     settingsList.classList.add("settings-list");
 
-    settingsMenu.appendChild(settingsHeader);
-    settingsMenu.appendChild(settingsHint);
-    settingsMenu.appendChild(settingsList);
+    borrowSection.appendChild(settingsHeader);
+    borrowSection.appendChild(settingsHint);
+    borrowSection.appendChild(settingsList);
+
+    settingsMenu.appendChild(toggleSection);
+    settingsMenu.appendChild(borrowSection);
     cardBase.appendChild(settingsMenu);
 
     cardBase.style.alignContent = "center";
