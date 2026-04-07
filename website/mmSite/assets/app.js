@@ -10,9 +10,24 @@ import { initCraftPage } from "./craft.js";
 export let gAllRecipes = [];
 export let gAllItems = [];
 let gAllPlayers = [];
+let gEqualizeCardSizesFunction = null;
 const RECIPES_FILEPATH = "./data/recipes.json"
 const ITEMS_FILEPATH = "./data/items.json"
 const INVENTORIES_FILEPATH = "./data/playerInventories.json"
+
+function createDebouncedResizeHandler() {
+    let resizeTimeout = null;
+    return () => {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(() => {
+            if (gEqualizeCardSizesFunction) {
+                gEqualizeCardSizesFunction();
+            }
+        }, 150);
+    };
+}
+
+const debouncedResizeHandler = createDebouncedResizeHandler();
 
 // SHARED FUNCTIONS
 function extractRecipes(data) {
@@ -33,6 +48,7 @@ function extractRecipes(data) {
 function renderHyperlinkList(variablesToList, listElement, textProperty = "", linkProperty = "", doClear = true) {
     // Used to render a list of items with links embedded
     variablesToList = Array.isArray(variablesToList) ? variablesToList : [];
+    if (!listElement) return;
     if (doClear) listElement.innerHTML = "";
 
     for (const v of variablesToList) {
@@ -147,7 +163,8 @@ function getQueryParam(name) {
 }
 
 function renderRecipeDetail(recipe) {
-    const tools = (recipe.tools || []).join(", ");
+    const tools = Array.isArray(recipe.tools) ? recipe.tools : [];
+    const skills = Array.isArray(recipe.requirements) ? recipe.requirements : [];
     const ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients : [];
     const results = Array.isArray(recipe.results) ? recipe.results : [];
     const relatedRecipes = Array.isArray(recipe.relatedRecipes) ? recipe.relatedRecipes : [];
@@ -157,24 +174,111 @@ function renderRecipeDetail(recipe) {
         if (el) el.style.display = hasContent ? "" : "none";
     }
 
+    function setElementVisibility(elementId, hasContent) {
+        const el = document.getElementById(elementId);
+        if (el) el.style.display = hasContent ? "" : "none";
+    }
+
+    function setTextById(elementId, text) {
+        const el = document.getElementById(elementId);
+        if (el) el.textContent = text;
+    }
+
+    function equalizeMiddleCardSizes() {
+        const ingredientsCard = document.getElementById("ingredientsCard");
+        const resultsCard = document.getElementById("resultsCard");
+
+        if (!ingredientsCard || !resultsCard) return;
+
+        ingredientsCard.style.minWidth = "";
+        ingredientsCard.style.minHeight = "";
+        resultsCard.style.minWidth = "";
+        resultsCard.style.minHeight = "";
+
+        if (ingredientsCard.style.display === "none" || resultsCard.style.display === "none") {
+            return;
+        }
+
+        const maxWidth = Math.max(ingredientsCard.offsetWidth, resultsCard.offsetWidth);
+        ingredientsCard.style.minWidth = `${maxWidth}px`;
+        resultsCard.style.minWidth = `${maxWidth}px`;
+
+        requestAnimationFrame(() => {
+            const maxHeight = Math.max(ingredientsCard.offsetHeight, resultsCard.offsetHeight);
+            ingredientsCard.style.minHeight = `${maxHeight}px`;
+            resultsCard.style.minHeight = `${maxHeight}px`;
+        });
+    }
+
+    gEqualizeCardSizesFunction = equalizeMiddleCardSizes;
+
     //MAIN INFO
     let recipeNameId = "recipeName"
-    document.getElementById(recipeNameId).textContent = recipe.name || "Unknown Recipe";
+    setTextById(recipeNameId, recipe.name || "Unknown Recipe");
 
     let recipeCategoryId = "recipeCategory"
-    document.getElementById(recipeCategoryId).textContent = recipe.category || "";
+    setTextById(recipeCategoryId, recipe.category || "");
 
     //REQUIREMENTS
-    let recipeCraftingTimeId = "craftTime"
-    document.getElementById(recipeCraftingTimeId).textContent = recipe.craftingTimeMinutes || "";
+    const craftingTimeColumn = document.getElementById("craftingTimeColumn");
+    const craftingTimeItems = document.getElementById("craftingTimeItems");
+    const skillsColumn = document.getElementById("skillsColumn");
+    const skillsItems = document.getElementById("skillsItems");
+    const toolsColumn = document.getElementById("toolsColumn");
+    const toolsItems = document.getElementById("toolsItems");
 
-    let recipeToolsId = "tools"
-    document.getElementById(recipeToolsId).textContent = tools || "";
+    function setColumnVisibility(columnElement, hasContent) {
+        if (columnElement) columnElement.style.display = hasContent ? "" : "none";
+    }
 
-    let recipeSkillsId = "skills"
-    document.getElementById(recipeSkillsId).textContent = recipe.requirementsText || "";
+    function addRequirementBox(container, label, value) {
+        if (!container) return;
 
-    const hasRequirements = Boolean(recipe.craftingTimeMinutes || tools || recipe.requirementsText);
+        const box = document.createElement("div");
+        box.classList.add("requirement-box");
+
+        const val = document.createElement("div");
+        val.classList.add("requirement-v");
+        val.textContent = value;
+
+        if (label) {
+            const key = document.createElement("div");
+            key.classList.add("requirement-k");
+            key.textContent = label;
+            box.appendChild(key);
+        }
+
+        box.appendChild(val);
+        container.appendChild(box);
+    }
+
+    if (craftingTimeItems) craftingTimeItems.innerHTML = "";
+    if (skillsItems) skillsItems.innerHTML = "";
+    if (toolsItems) toolsItems.innerHTML = "";
+
+    if (recipe.craftingTimeMinutes) {
+        addRequirementBox(craftingTimeItems, "", `${recipe.craftingTimeMinutes} minute(s)`);
+    }
+
+    if (skills.length > 0) {
+        for (const skill of skills) {
+            const skillName = skill.skill || "Unknown Skill";
+            const skillLevel = skill.level ? `+${skill.level}` : "";
+            addRequirementBox(skillsItems, "", `${skillName} ${skillLevel}`.trim());
+        }
+    } else if (recipe.requirementsText) {
+        addRequirementBox(skillsItems, "", recipe.requirementsText.replace(/^Requires\s*/i, ""));
+    }
+
+    for (const tool of tools) {
+        addRequirementBox(toolsItems, "", tool);
+    }
+
+    setColumnVisibility(craftingTimeColumn, Boolean(recipe.craftingTimeMinutes));
+    setColumnVisibility(skillsColumn, Boolean(skills.length > 0 || recipe.requirementsText));
+    setColumnVisibility(toolsColumn, tools.length > 0);
+
+    const hasRequirements = Boolean(recipe.craftingTimeMinutes || tools.length || skills.length || recipe.requirementsText);
     setCardVisibility("requirementsCard", hasRequirements);
 
     //LINKS
@@ -188,9 +292,13 @@ function renderRecipeDetail(recipe) {
     renderHyperlinkList(results, document.getElementById(recipeResultsId), recipeNameProperty);
     setCardVisibility("resultsCard", results.length > 0);
 
+    setElementVisibility("ingredientsResultsArrow", ingredients.length > 0 && results.length > 0);
+
     let recipeRelatedRecipesId = "relatedRecipesList"
     renderHyperlinkList(relatedRecipes, document.getElementById(recipeRelatedRecipesId), recipeNameProperty, recipeIdProperty);
     setCardVisibility("relatedRecipesCard", relatedRecipes.length > 0);
+
+    requestAnimationFrame(equalizeMiddleCardSizes);
 }
 
 function getItemInfo(item){
@@ -235,12 +343,15 @@ function initRecipeDetailPage() {
     const recipeId = getQueryParam("recipeId");
     const itemId = getQueryParam("itemId");
 
+    window.addEventListener("resize", debouncedResizeHandler);
+
     let pageErrorId = "Error"
     let pageSearchId = "currentRecipeIndex"
     let recipeIndex = (parseInt(document.getElementById(pageSearchId)?.value) - 1) || 0;
 
     if (!recipeId && !itemId) {
-        document.getElementById(pageErrorId).textContent = "No recipeId or itemId provided.";
+        const errorEl = document.getElementById(pageErrorId);
+        if (errorEl) errorEl.textContent = "No recipeId or itemId provided.";
         return;
     }
     
@@ -257,20 +368,23 @@ function initRecipeDetailPage() {
             .then(itemInfo => {
                 if (itemInfo.length > 0) {
                     recipeIndex = recipeIndex % itemInfo.length;
-                    document.getElementById(pageSearchId).value = (recipeIndex || 0) + 1;
+                    const recipeIndexInput = document.getElementById(pageSearchId);
+                    if (recipeIndexInput) recipeIndexInput.value = (recipeIndex || 0) + 1;
                     if (itemInfo[recipeIndex].isRecipe) {
                         renderRecipeDetail(itemInfo[recipeIndex]);
                     } else {
                         renderRecipeDetail(itemInfo[recipeIndex]);
                     }
                 } else {
-                    document.getElementById(pageErrorId).textContent = "No recipes found.";
+                    const errorEl = document.getElementById(pageErrorId);
+                    if (errorEl) errorEl.textContent = "No recipes found.";
                 }
             });
         }
     })
     .catch(err => {
-        document.getElementById(pageErrorId).textContent = "Error loading item data: " + err.message;
+        const errorEl = document.getElementById(pageErrorId);
+        if (errorEl) errorEl.textContent = "Error loading item data: " + err.message;
     });
 }
 
