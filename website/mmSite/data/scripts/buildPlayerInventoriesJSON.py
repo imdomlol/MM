@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 from datetime import datetime, timezone
 import gspread
 from google.oauth2.service_account import Credentials
@@ -26,6 +27,10 @@ SHEET_IDS = {
     "1Rk9iYlQy8qgaV_JNPgyaynb8ZpJwZkh-KALU280zYiQ"
 }
 
+REPO_ROOT = Path(__file__).resolve().parents[4]
+DATA_DIR = REPO_ROOT / "website" / "mmSite" / "data"
+CREDS_DIR = REPO_ROOT / "Misc"
+
 def colLetter(num: int) -> str:
     """Convert column number to letter(s) (e.g., 1 -> A, 27 -> AA)."""
     result = ""
@@ -37,7 +42,11 @@ def colLetter(num: int) -> str:
 
 def main():
     # Load credentials
-    credsPath = os.path.expanduser(r"MM\Misc\mythmagic-crafter-2d97b8de3a95.json")
+    credsMatches = sorted(CREDS_DIR.glob("mythmagic-crafter-*.json"))
+    if not credsMatches:
+        raise FileNotFoundError(f"No service account JSON found in {CREDS_DIR}")
+
+    credsPath = credsMatches[0]
     creds = Credentials.from_service_account_file(
         credsPath,
         scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"],
@@ -89,7 +98,7 @@ def main():
     
     # Add itemIds from items.json
     try:
-        with open(r"MM\website\mmSite\data\items.json", "r", encoding="utf-8") as f:
+        with open(DATA_DIR / "items.json", "r", encoding="utf-8") as f:
             itemsData = json.load(f)
         itemsMap = {item['name'].lower(): item['itemId'] for item in itemsData.get('items', [])}
         for player in players:
@@ -107,7 +116,7 @@ def main():
     }
     
     # Write to file
-    with open(r"MM\website\mmSite\data\playerInventories.json", "w", encoding="utf-8") as f:
+    with open(DATA_DIR / "playerInventories.json", "w", encoding="utf-8") as f:
         json.dump(output, f, indent=4, ensure_ascii=False)
     
     print(f"Wrote {sum(len(player['items']) for player in players)} items to playerInventories.json")

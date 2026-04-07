@@ -1,7 +1,9 @@
 import json
 from pathlib import Path
-recipesPath = "c:\\Users\\dominic\\CodingProjects\\M&M\\website\\mmSite\\data\\recipes.json"
-outPath = "c:\\Users\\dominic\\CodingProjects\\M&M\\website\\mmSite\\data\\items.json"
+
+REPO_ROOT = Path(__file__).resolve().parents[4]
+recipesPath = REPO_ROOT / "website" / "mmSite" / "data" / "recipes.json"
+outPath = REPO_ROOT / "website" / "mmSite" / "data" / "items.json"
 booksProperty = 'books'
 recipesProperty = 'recipes'
 recipesNameProperty = 'name'
@@ -19,7 +21,7 @@ outputItemRelatedRecipeIdsProperty = 'relatedRecipeIds'
 
 def build_items_json():
     
-    with open(recipesPath, 'r') as f:
+    with open(recipesPath, 'r', encoding='utf-8') as f:
         books = json.load(f)
     
     items = {}
@@ -64,11 +66,9 @@ def build_items_json():
                     items[itemId][outputItemRelatedRecipeIdsProperty].append(recipeId) if recipeId not in items[itemId][outputItemRecipeIdProperty] else None
     
     # Write items.json
-    outputPath = Path(outPath)
-    
     itemsList = list(items.values())
     
-    with open(outputPath, 'w') as f:
+    with open(outPath, 'w', encoding='utf-8') as f:
         json.dump({'items': itemsList}, f, indent=2)
     
     print(f"Generated items.json with {len(itemsList)} unique items")

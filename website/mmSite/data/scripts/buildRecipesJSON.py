@@ -225,8 +225,9 @@ def mergeRecipeDetails(payload: dict, detailsByRecipeId: dict[str, dict]) -> dic
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Parse reciperaw.html -> recipes.json (books + recipe items)")
-    ap.add_argument("--input", "-i", default="./M&M/Scrape/reciperaw.html")
-    ap.add_argument("--output", "-o", default="./M&M/website/mmsite/data/recipes.json")
+    repo_root = Path(__file__).resolve().parents[4]
+    ap.add_argument("--input", "-i", default=str(repo_root / "Scrape" / "reciperaw.html"))
+    ap.add_argument("--output", "-o", default=str(repo_root / "website" / "mmSite" / "data" / "recipes.json"))
     args = ap.parse_args()
 
     in_path = Path(args.input)

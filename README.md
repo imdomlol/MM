@@ -85,16 +85,13 @@ python website/mmSite/data/scripts/buildRecipesJSON.py --input Scrape/reciperaw.
 
 Script: `website/mmSite/data/scripts/buildItemsJSON.py`
 
-Notes:
-
-- This script currently uses hardcoded Windows absolute paths.
-- Update `recipesPath` and `outPath` in the script for your machine/workspace.
-
 Run:
 
 ```powershell
 python website/mmSite/data/scripts/buildItemsJSON.py
 ```
+
+The script now resolves paths from the repo root, so it works from any machine as long as the repo layout stays the same.
 
 ### 3) Build player inventories JSON from Google Sheets
 
@@ -111,6 +108,8 @@ Run:
 python website/mmSite/data/scripts/buildPlayerInventoriesJSON.py
 ```
 
+The script automatically looks for the local service account file in `Misc/` with the `mythmagic-crafter-*.json` pattern.
+
 ## Security Notes
 
 - Credential files like `Misc/mythmagic-crafter-*.json` should remain local only.
@@ -120,8 +119,8 @@ python website/mmSite/data/scripts/buildPlayerInventoriesJSON.py
 ## Troubleshooting
 
 - `FileNotFoundError` in data scripts:
-  - Check hardcoded paths in `buildItemsJSON.py` and `buildPlayerInventoriesJSON.py`.
-  - Prefer repo-relative paths if you want scripts to be portable.
+  - Confirm `Scrape/reciperaw.html` and `website/mmSite/data/recipes.json` exist for the recipe/item builders.
+  - Confirm the service account JSON exists under `Misc/` for the inventory builder.
 - Google Sheets auth errors:
   - Verify the credential JSON path and file name.
   - Confirm spreadsheet sharing permissions for the service account email.

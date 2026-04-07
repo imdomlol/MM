@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from bs4 import BeautifulSoup
 import networkx as nx
 from pyvis.network import Network
@@ -221,7 +223,7 @@ def show_graph_in_pyvis(G, query, query_title):
     print(f"Graph saved as {output_html}")
 
 if __name__ == "__main__":
-    with open("C:\\Users\\dominic\\CodingProjects\\M&M\\reciperaw.html", "r", encoding="utf-8") as f:
+    with open(Path(__file__).resolve().parent / "reciperaw.html", "r", encoding="utf-8") as f:
         html_content = f.read()
 
     parsed_recipes = parse_mastercrafted_recipes(html_content)

@@ -5,3 +5,5 @@ Misc/mythmagic-crafter-*.json
 # Environment
 .env
 .env.*
+.venv
+.venv.*

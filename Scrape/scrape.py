@@ -4,6 +4,7 @@ from pyvis.network import Network
 import requests
 from requests.exceptions import RequestException
 import os
+from pathlib import Path
 import webbrowser
 import tkinter as tk
 from tkinter import ttk
@@ -675,7 +676,8 @@ def fetch_recipe_page_with_selenium(recipe_page_url):
   return html
 
 if __name__ == "__main__":
-    local_file_path = "C:\\Users\\dominic\\CodingProjects\\M&M\\Scrape\\reciperaw.html"
+    script_dir = Path(__file__).resolve().parent
+    local_file_path = script_dir / "reciperaw.html"
     recipe_page_url = "http://173.29.198.65:30000/game"
     
     update = 'TRUE'
@@ -683,7 +685,7 @@ if __name__ == "__main__":
     if update == 'TRUE':
         try:
             html_content = fetch_recipe_page_with_selenium(recipe_page_url)
-            with open("C:\\Users\\dominic\\CodingProjects\\M&M\\Scrape\\reciperawAUTO.html", "w", encoding="utf-8") as f:
+            with open(script_dir / "reciperawAUTO.html", "w", encoding="utf-8") as f:
                 f.write(html_content)
             print("Successfully logged in via Selenium and fetched the recipe page.")
         except Exception as e:

@@ -675,7 +675,8 @@ def fetch_recipe_page_with_selenium(recipe_page_url):
   return html
 
 if __name__ == "__main__":
-    local_file_path = "C:\\Users\\dominic\\CodingProjects\\M&M\\reciperaw.html"
+    script_dir = Path(__file__).resolve().parent
+    local_file_path = script_dir / "reciperaw.html"
     recipe_page_url = "http://173.16.234.161:30000/game"
     
     update = 'FALSE'
