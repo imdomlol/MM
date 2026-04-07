@@ -1,6 +1,6 @@
 import { loadMarks, saveMarks } from "./rightClickMenu.js"
 import { applyMarksToAll } from "./rightClickMenu.js";
-import { gAllItems, gAllRecipes } from "./app.js";
+import { gAllItems, gAllPlayers, gAllRecipes } from "./app.js";
 import {
     isRecursiveModeEnabled,
     getCraftRunsForQuantity,
@@ -18,8 +18,13 @@ const pageCraftsId = "craft"
 //BUTTONS
 const toolbarButtonSaveId = "toolbarSave"
 const toolbarButtonRecursiveId = "toolbarRecursive"
+const toolbarButtonSettingsId = "toolbarSettings"
+const toolbarSettingsMenuId = "toolbarSettingsMenu"
+const toolbarSettingsListId = "toolbarSettingsList"
+const toolbarSettingsCloseId = "toolbarSettingsClose"
 const selectedTreeCollapsedStorageKey = "mm_selected_tree_collapsed_v1"
 const materialsProgressStorageKey = "mm_materials_progress_v1"
+const borrowSettingsStorageKey = "mm_character_borrow_settings_v1"
 
 //STYLES
 const pageCraftsCardStyleTracked = "Tracked"
@@ -126,9 +131,167 @@ let gTrackedItems = {};
 let gSelectedItems = [];
 let gSelectedTreeCollapsedKeys = new Set();
 let gMaterialProgressByKey = {};
+let gCharacterBorrowSettings = {};
 let fromScratch = false;
 let mainGrid = null;
 let gCraftCardHeightSyncResizeHandler = null;
+
+const borrowStateAlways = "always";
+const borrowStateAsk = "ask";
+const borrowStateNever = "never";
+const borrowStates = [borrowStateAlways, borrowStateAsk, borrowStateNever];
+
+function normalizeBorrowState(state) {
+    return borrowStates.includes(state) ? state : borrowStateAsk;
+}
+
+function loadCharacterBorrowSettings() {
+    try {
+        const parsed = JSON.parse(localStorage.getItem(borrowSettingsStorageKey) || "{}");
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+            gCharacterBorrowSettings = {};
+            return;
+        }
+
+        const nextSettings = {};
+        for (const [playerName, state] of Object.entries(parsed)) {
+            if (!playerName) continue;
+            nextSettings[playerName] = normalizeBorrowState(state);
+        }
+
+        gCharacterBorrowSettings = nextSettings;
+    } catch {
+        gCharacterBorrowSettings = {};
+    }
+}
+
+function saveCharacterBorrowSettings() {
+    localStorage.setItem(borrowSettingsStorageKey, JSON.stringify(gCharacterBorrowSettings));
+}
+
+function getPlayerNamesFromInventories() {
+    const names = (gAllPlayers || [])
+        .map(player => String(player?.name || "").trim())
+        .filter(Boolean);
+
+    return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
+}
+
+function getBorrowStateForPlayer(playerName) {
+    return normalizeBorrowState(gCharacterBorrowSettings[playerName]);
+}
+
+function setBorrowStateForPlayer(playerName, nextState) {
+    if (!playerName) return;
+
+    gCharacterBorrowSettings[playerName] = normalizeBorrowState(nextState);
+    saveCharacterBorrowSettings();
+}
+
+function getNextBorrowState(currentState) {
+    const normalizedState = normalizeBorrowState(currentState);
+    const stateIndex = borrowStates.indexOf(normalizedState);
+    const nextIndex = (stateIndex + 1) % borrowStates.length;
+    return borrowStates[nextIndex];
+}
+
+function createBorrowStateButton(playerName, state) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.classList.add(elementClassButton, "borrow-state-button", `is-${state}`);
+    button.textContent = state;
+    button.setAttribute("aria-label", `Borrow state for ${playerName}: ${state}. Click to cycle.`);
+    button.title = "Click to cycle: always -> ask -> never";
+
+    button.addEventListener("click", () => {
+        const currentState = getBorrowStateForPlayer(playerName);
+        const nextState = getNextBorrowState(currentState);
+        setBorrowStateForPlayer(playerName, nextState);
+
+        button.classList.remove(`is-${currentState}`);
+        button.classList.add(`is-${nextState}`);
+        button.textContent = nextState;
+        button.setAttribute("aria-label", `Borrow state for ${playerName}: ${nextState}. Click to cycle.`);
+    });
+
+    return button;
+}
+
+function renderSettingsMenuRows() {
+    const listElement = document.getElementById(toolbarSettingsListId);
+    if (!listElement) return;
+
+    listElement.innerHTML = "";
+    const playerNames = getPlayerNamesFromInventories();
+
+    if (playerNames.length === 0) {
+        const emptyState = document.createElement("p");
+        emptyState.classList.add("settings-empty");
+        emptyState.textContent = "No character inventories found.";
+        listElement.appendChild(emptyState);
+        return;
+    }
+
+    for (const playerName of playerNames) {
+        const row = document.createElement("div");
+        row.classList.add("settings-row");
+
+        const label = document.createElement("span");
+        label.classList.add("settings-player-name");
+        label.textContent = playerName;
+
+        const state = getBorrowStateForPlayer(playerName);
+        const stateButton = createBorrowStateButton(playerName, state);
+
+        row.appendChild(label);
+        row.appendChild(stateButton);
+        listElement.appendChild(row);
+    }
+}
+
+function setupToolbarSettingsMenu() {
+    const menu = document.getElementById(toolbarSettingsMenuId);
+    const openButton = document.getElementById(toolbarButtonSettingsId);
+    const closeButton = document.getElementById(toolbarSettingsCloseId);
+    if (!menu || !openButton || !closeButton) return;
+
+    const setOpen = (isOpen) => {
+        menu.hidden = !isOpen;
+        openButton.classList.toggle("is-active", isOpen);
+        openButton.setAttribute("aria-expanded", String(isOpen));
+        if (isOpen) {
+            renderSettingsMenuRows();
+        }
+    };
+
+    setOpen(false);
+
+    openButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setOpen(menu.hidden);
+    });
+
+    closeButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setOpen(false);
+    });
+
+    menu.addEventListener("click", (event) => {
+        event.stopPropagation();
+    });
+
+    document.addEventListener("click", () => {
+        setOpen(false);
+    });
+
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+            setOpen(false);
+        }
+    });
+}
 
 function normalizeMaterialProgressQuantity(value, fallback = 0) {
     const parsed = Number(value);
@@ -667,11 +830,45 @@ function addCardToolbar(baseElement){
     appendButton(cardBase, elementClass = elementClassButton, elementId = "test2Button", elementText = "Push")
     appendButton(cardBase, elementClass = elementClassButton, elementId = toolbarButtonRecursiveId, elementText = "Recursive: OFF")
     appendButton(cardBase, elementClass = elementClassButton, elementId = "toolbarSave", elementText = "Save")
+    const settingsButton = appendButton(cardBase, elementClass = elementClassButton, elementId = toolbarButtonSettingsId, elementText = "Settings")
+    settingsButton.setAttribute("aria-expanded", "false");
+    settingsButton.setAttribute("aria-controls", toolbarSettingsMenuId);
     appendButton(cardBase, elementClass = elementClassButton, elementId = "test4Button", elementText = "Load")
     appendDropdown(cardBase, elementId = "testDropdown")
 
+    const settingsMenu = document.createElement("div");
+    settingsMenu.id = toolbarSettingsMenuId;
+    settingsMenu.classList.add("craft-settings-menu");
+    settingsMenu.hidden = true;
+
+    const settingsHeader = document.createElement("div");
+    settingsHeader.classList.add("settings-header");
+
+    const settingsTitle = document.createElement("h2");
+    settingsTitle.classList.add("settings-title");
+    settingsTitle.textContent = "Character Borrow Defaults";
+
+    const settingsCloseButton = appendButton(settingsHeader, elementClassButton, toolbarSettingsCloseId, "Close");
+    settingsCloseButton.classList.add("ghost");
+
+    settingsHeader.prepend(settingsTitle);
+
+    const settingsHint = document.createElement("p");
+    settingsHint.classList.add("settings-hint");
+    settingsHint.textContent = "Cosmetic only for now. Cycle each character state: always, ask, never.";
+
+    const settingsList = document.createElement("div");
+    settingsList.id = toolbarSettingsListId;
+    settingsList.classList.add("settings-list");
+
+    settingsMenu.appendChild(settingsHeader);
+    settingsMenu.appendChild(settingsHint);
+    settingsMenu.appendChild(settingsList);
+    cardBase.appendChild(settingsMenu);
+
     cardBase.style.alignContent = "center";
     cardBase.style.justifyContent = "center";
+    cardBase.style.position = "relative";
     return cardBase;
 }
 
@@ -1982,6 +2179,7 @@ export function initCraftPage() {
     gSelectedItems = getSelectedItems(gTrackedItems);
     loadSelectedTreeCollapsedKeys();
     loadMaterialsProgress();
+    loadCharacterBorrowSettings();
 
     //Base Grid Setup
     mainGrid = addGridBase(baseElement)
@@ -2000,6 +2198,7 @@ export function initCraftPage() {
     //Button Functionality Setup
     setupButtonSave();
     setupRecursiveToggleButton();
+    setupToolbarSettingsMenu();
 
     //Update Viewport
     updateView();
