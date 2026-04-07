@@ -126,11 +126,21 @@ function hasExpandableIngredients(entry, itemData, recipeLookup) {
 
   const itemId = entry?.itemId || itemData?.itemId || "";
   const parentItemIds = getParentItemIds(itemData, recipeLookup);
+  let allRecipesIncludeSelf = recipeIds.length > 0;
+  let hasExpandableRecipe = false;
 
   for (const recipeId of recipeIds) {
     const recipe = recipeLookup.get(recipeId);
     if (!recipe || !Array.isArray(recipe.ingredients) || recipe.ingredients.length === 0) {
+      allRecipesIncludeSelf = false;
       continue;
+    }
+
+    const includesSelfIngredient = recipe.ingredients.some(ingredient => {
+      return ingredient?.itemId === itemId;
+    });
+    if (!includesSelfIngredient) {
+      allRecipesIncludeSelf = false;
     }
 
     const hasNonSelfIngredient = recipe.ingredients.some(ingredient => {
@@ -147,11 +157,15 @@ function hasExpandableIngredients(entry, itemData, recipeLookup) {
     }
 
     if (hasNonSelfIngredient) {
-      return true;
+      hasExpandableRecipe = true;
     }
   }
 
-  return false;
+  if (allRecipesIncludeSelf) {
+    return false;
+  }
+
+  return hasExpandableRecipe;
 }
 
 function pruneAutoEntries(marks) {
