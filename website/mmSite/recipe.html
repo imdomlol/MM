@@ -3,16 +3,16 @@
     <head>
         <meta charset="utf-8">
         <title id="windowsTitle">Recipe</title>
-        <link rel="stylesheet" href="/assets/app.css">
+        <link rel="stylesheet" href="./assets/app.css">
     </head>
     <body>
         <video class="bg-video" autoplay muted loop playsinline disablepictureinpicture controlslist="nodownload noplaybackrate noremoteplayback">
-            <source src="/assets/mp4/dustParticles.mp4" type="video/mp4">
+            <source src="./assets/mp4/dustParticles.mp4" type="video/mp4">
         </video>
-        <!--#include virtual="/partials/header.html" -->
+        <div id="siteHeader"></div>
         <main class="page" id="recipePage">
             <div class = toolbar>
-                <a class="btn" href="/recipes.html">Back to List</a>
+                <a class="btn" href="./recipes.html">Back to List</a>
 
                 <div></div>
                 <div></div>
@@ -71,8 +71,9 @@
             <button type="button" data-action="set-category" data-category="">Clear category</button>
         </div>
 
-        <script type="module" src="/assets/app.js"></script>
-        <script type="module" src="/assets/rightClickMenu.js"></script>
+        <script type="module" src="./assets/layout.js"></script>
+        <script type="module" src="./assets/app.js"></script>
+        <script type="module" src="./assets/rightClickMenu.js"></script>
         <script window.MM_PAGE = "Recipe"></script>
 
     </body>

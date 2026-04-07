@@ -1,4 +1,4 @@
-document.addEventListener("DOMContentLoaded", () => {
+function initThemes() {
   const KEY_THEME = "mm_theme";
   const KEY_OWNER = "mm_theme_owner";
 
@@ -72,4 +72,10 @@ document.addEventListener("DOMContentLoaded", () => {
       apply(chosen);
     });
   }
-});
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initThemes);
+} else {
+  initThemes();
+}

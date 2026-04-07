@@ -10,9 +10,9 @@ import { initCraftPage } from "./craft.js";
 export let gAllRecipes = [];
 export let gAllItems = [];
 let gAllPlayers = [];
-const RECIPES_FILEPATH = "/data/recipes.json"
-const ITEMS_FILEPATH = "/data/items.json"
-const INVENTORIES_FILEPATH = "/data/playerInventories.json"
+const RECIPES_FILEPATH = "./data/recipes.json"
+const ITEMS_FILEPATH = "./data/items.json"
+const INVENTORIES_FILEPATH = "./data/playerInventories.json"
 
 // SHARED FUNCTIONS
 function extractRecipes(data) {
@@ -40,12 +40,12 @@ function renderHyperlinkList(variablesToList, listElement, textProperty = "", li
         // Set link destination
         const a = document.createElement("a");
         if (v[linkProperty])
-            a.href = "/recipe.html?" + linkProperty + "=" + encodeURIComponent(v[linkProperty]);
+            a.href = "./recipe.html?" + linkProperty + "=" + encodeURIComponent(v[linkProperty]);
         else if (v.recipeId){
-            a.href = ("/recipe.html?recipeId=" + encodeURIComponent(v.recipeId));
+            a.href = ("./recipe.html?recipeId=" + encodeURIComponent(v.recipeId));
         }
         else if (v.itemId){
-            a.href = ("/recipe.html?itemId=" + encodeURIComponent(v.itemId));
+            a.href = ("./recipe.html?itemId=" + encodeURIComponent(v.itemId));
         }
 
         // Set the text
