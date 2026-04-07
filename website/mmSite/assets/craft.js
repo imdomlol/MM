@@ -822,9 +822,11 @@ function addCardToolbar(baseElement){
     appendButton(cardBase, elementClass = elementClassButton, elementId = "test2Button", elementText = "Push")
     appendButton(cardBase, elementClass = elementClassButton, elementId = toolbarButtonRecursiveId, elementText = "Recursive: OFF")
     appendButton(cardBase, elementClass = elementClassButton, elementId = "toolbarSave", elementText = "Save")
-    const settingsButton = appendButton(cardBase, elementClass = elementClassButton, elementId = toolbarButtonSettingsId, elementText = "Settings")
+    const settingsButton = appendButton(cardBase, elementClass = elementClassButton, elementId = toolbarButtonSettingsId, elementText = "⚙")
     settingsButton.setAttribute("aria-expanded", "false");
     settingsButton.setAttribute("aria-controls", toolbarSettingsMenuId);
+    settingsButton.setAttribute("aria-label", "Borrow settings");
+    settingsButton.title = "Borrow settings";
     appendButton(cardBase, elementClass = elementClassButton, elementId = "test4Button", elementText = "Load")
     appendDropdown(cardBase, elementId = "testDropdown")
 
