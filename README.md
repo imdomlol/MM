@@ -28,3 +28,24 @@ Myth & Magic Helper is a single-page web application designed to enhance the Myt
 - Recursive crafting calculations to determine total requirements
 - Right-click context menus for quick recipe lookups
 - Theme support for comfortable browsing
+
+## Testing & Local Hosting
+
+The application is a static website and can be tested locally with any HTTP server.
+
+### Using Python
+
+From the repository root:
+
+```bash
+cd website/mmSite
+python -m http.server 8080
+```
+
+Then open `http://localhost:8080` in your browser.
+
+### Using VS Code Live Server
+
+1. Open `website/mmSite/index.html` in VS Code
+2. Right-click and select "Open with Live Server"
+3. The site will automatically open in your default browser at `http://localhost:5500`
