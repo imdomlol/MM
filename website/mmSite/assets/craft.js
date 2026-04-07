@@ -1501,6 +1501,7 @@ function renderSelectedListEntry(selectedListElement, node) {
         listEntry.classList.add("selected-item-tree");
     } else {
         listEntry.classList.add("selected-item-root");
+        listEntry.classList.add("selected-item-flat");
     }
     if (node.isAutoAdded) {
         listEntry.classList.add("selected-item-auto");
@@ -1517,26 +1518,29 @@ function renderSelectedListEntry(selectedListElement, node) {
     const showTreeToggle = hasChildren && node.depth > 0;
     const isCollapsed = showTreeToggle && isTreeNodeCollapsed(node.pathKey);
 
-    const treeToggleButton = document.createElement("button");
-    treeToggleButton.classList.add(elementClassButton, "selected-tree-toggle-button");
-    treeToggleButton.type = "button";
+    let treeToggleButton = null;
+    if (node.depth > 0) {
+        treeToggleButton = document.createElement("button");
+        treeToggleButton.classList.add(elementClassButton, "selected-tree-toggle-button");
+        treeToggleButton.type = "button";
 
-    if (showTreeToggle) {
-        treeToggleButton.textContent = isCollapsed ? "▸" : "▾";
-        treeToggleButton.setAttribute("aria-label", isCollapsed ? "Expand children" : "Collapse children");
-        treeToggleButton.title = isCollapsed ? "Show children" : "Hide children";
-        treeToggleButton.addEventListener("click", (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            setTreeNodeCollapsed(node.pathKey, !isCollapsed);
-            updateView();
-        });
-    } else {
-        treeToggleButton.classList.add("is-empty");
-        treeToggleButton.setAttribute("aria-hidden", "true");
-        treeToggleButton.tabIndex = -1;
-        treeToggleButton.disabled = true;
-        treeToggleButton.textContent = "";
+        if (showTreeToggle) {
+            treeToggleButton.textContent = isCollapsed ? "▸" : "▾";
+            treeToggleButton.setAttribute("aria-label", isCollapsed ? "Expand children" : "Collapse children");
+            treeToggleButton.title = isCollapsed ? "Show children" : "Hide children";
+            treeToggleButton.addEventListener("click", (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setTreeNodeCollapsed(node.pathKey, !isCollapsed);
+                updateView();
+            });
+        } else {
+            treeToggleButton.classList.add("is-empty");
+            treeToggleButton.setAttribute("aria-hidden", "true");
+            treeToggleButton.tabIndex = -1;
+            treeToggleButton.disabled = true;
+            treeToggleButton.textContent = "";
+        }
     }
 
     const pinButton = document.createElement("button");
@@ -1647,7 +1651,9 @@ function renderSelectedListEntry(selectedListElement, node) {
     if (quantityControl) {
         listEntry.appendChild(quantityControl);
     }
-    listEntry.appendChild(treeToggleButton);
+    if (treeToggleButton) {
+        listEntry.appendChild(treeToggleButton);
+    }
     listEntry.appendChild(itemLink);
     listEntry.appendChild(pinButton);
     selectedListElement.appendChild(listEntry);
