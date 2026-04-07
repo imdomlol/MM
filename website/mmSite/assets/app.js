@@ -32,6 +32,7 @@ function extractRecipes(data) {
 
 function renderHyperlinkList(variablesToList, listElement, textProperty = "", linkProperty = "", doClear = true) {
     // Used to render a list of items with links embedded
+    variablesToList = Array.isArray(variablesToList) ? variablesToList : [];
     if (doClear) listElement.innerHTML = "";
 
     for (const v of variablesToList) {
@@ -147,6 +148,14 @@ function getQueryParam(name) {
 
 function renderRecipeDetail(recipe) {
     const tools = (recipe.tools || []).join(", ");
+    const ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients : [];
+    const results = Array.isArray(recipe.results) ? recipe.results : [];
+    const relatedRecipes = Array.isArray(recipe.relatedRecipes) ? recipe.relatedRecipes : [];
+
+    function setCardVisibility(cardId, hasContent) {
+        const el = document.getElementById(cardId);
+        if (el) el.style.display = hasContent ? "" : "none";
+    }
 
     //MAIN INFO
     let recipeNameId = "recipeName"
@@ -165,17 +174,23 @@ function renderRecipeDetail(recipe) {
     let recipeSkillsId = "skills"
     document.getElementById(recipeSkillsId).textContent = recipe.requirementsText || "";
 
+    const hasRequirements = Boolean(recipe.craftingTimeMinutes || tools || recipe.requirementsText);
+    setCardVisibility("requirementsCard", hasRequirements);
+
     //LINKS
     let recipeNameProperty = "name"
     let recipeIdProperty = "recipeId"
     let recipeIngredientsId = "ingredientsList"
-    renderHyperlinkList(recipe.ingredients, document.getElementById(recipeIngredientsId), recipeNameProperty);
+    renderHyperlinkList(ingredients, document.getElementById(recipeIngredientsId), recipeNameProperty);
+    setCardVisibility("ingredientsCard", ingredients.length > 0);
 
     let recipeResultsId = "resultsList"
-    renderHyperlinkList(recipe.results, document.getElementById(recipeResultsId), recipeNameProperty);
+    renderHyperlinkList(results, document.getElementById(recipeResultsId), recipeNameProperty);
+    setCardVisibility("resultsCard", results.length > 0);
 
     let recipeRelatedRecipesId = "relatedRecipesList"
-    renderHyperlinkList(recipe.relatedRecipes, document.getElementById(recipeRelatedRecipesId), recipeNameProperty, recipeIdProperty);
+    renderHyperlinkList(relatedRecipes, document.getElementById(recipeRelatedRecipesId), recipeNameProperty, recipeIdProperty);
+    setCardVisibility("relatedRecipesCard", relatedRecipes.length > 0);
 }
 
 function getItemInfo(item){
