@@ -816,31 +816,56 @@ function addCardSelected(baseElement){
 function addCardToolbar(baseElement){
     const cardBase = createCard(baseElement, elementClassCard, pageCraftsCardStyleToolbar);
     cardBase.style.overflowY = "";
+    cardBase.style.display = "flex";
+    cardBase.style.alignItems = "center";
+    cardBase.style.gap = "0.5rem";
     let elementClass = "", elementId = "", elementText = "", elementHref;
 
     appendButton(cardBase, elementClass = elementClassButton, elementId = "testButton", elementText = "Clear")
     appendButton(cardBase, elementClass = elementClassButton, elementId = "test2Button", elementText = "Push")
-    appendButton(cardBase, elementClass = elementClassButton, elementId = toolbarButtonRecursiveId, elementText = "Recursive: OFF")
     appendButton(cardBase, elementClass = elementClassButton, elementId = "toolbarSave", elementText = "Save")
+    appendButton(cardBase, elementClass = elementClassButton, elementId = "test4Button", elementText = "Load")
+    appendDropdown(cardBase, elementId = "testDropdown")
     const settingsButton = appendButton(cardBase, elementClass = elementClassButton, elementId = toolbarButtonSettingsId, elementText = "⚙")
     settingsButton.setAttribute("aria-expanded", "false");
     settingsButton.setAttribute("aria-controls", toolbarSettingsMenuId);
     settingsButton.setAttribute("aria-label", "Borrow settings");
     settingsButton.title = "Borrow settings";
-    appendButton(cardBase, elementClass = elementClassButton, elementId = "test4Button", elementText = "Load")
-    appendDropdown(cardBase, elementId = "testDropdown")
+    settingsButton.style.marginLeft = "auto";
 
     const settingsMenu = document.createElement("div");
     settingsMenu.id = toolbarSettingsMenuId;
     settingsMenu.classList.add("craft-settings-menu");
     settingsMenu.hidden = true;
 
+    const toggleSection = document.createElement("section");
+    toggleSection.classList.add("settings-section");
+
+    const toggleSectionTitle = document.createElement("h2");
+    toggleSectionTitle.classList.add("settings-title");
+    toggleSectionTitle.textContent = "Toggles";
+
+    const toggleSectionHint = document.createElement("p");
+    toggleSectionHint.classList.add("settings-hint");
+    toggleSectionHint.textContent = "When enabled, recursive mode will automatically add all sub-recipes of a manually selected recipe";
+
+    const toggleSectionActions = document.createElement("div");
+    toggleSectionActions.classList.add("settings-actions");
+    appendButton(toggleSectionActions, elementClassButton, toolbarButtonRecursiveId, "Recursive: OFF");
+
+    toggleSection.appendChild(toggleSectionTitle);
+    toggleSection.appendChild(toggleSectionHint);
+    toggleSection.appendChild(toggleSectionActions);
+
+    const borrowSection = document.createElement("section");
+    borrowSection.classList.add("settings-section");
+
     const settingsHeader = document.createElement("div");
     settingsHeader.classList.add("settings-header");
 
     const settingsTitle = document.createElement("h2");
     settingsTitle.classList.add("settings-title");
-    settingsTitle.textContent = "Borrow Settings";
+    settingsTitle.textContent = "Borrowing";
 
     settingsHeader.prepend(settingsTitle);
 
@@ -852,9 +877,12 @@ function addCardToolbar(baseElement){
     settingsList.id = toolbarSettingsListId;
     settingsList.classList.add("settings-list");
 
-    settingsMenu.appendChild(settingsHeader);
-    settingsMenu.appendChild(settingsHint);
-    settingsMenu.appendChild(settingsList);
+    borrowSection.appendChild(settingsHeader);
+    borrowSection.appendChild(settingsHint);
+    borrowSection.appendChild(settingsList);
+
+    settingsMenu.appendChild(toggleSection);
+    settingsMenu.appendChild(borrowSection);
     cardBase.appendChild(settingsMenu);
 
     cardBase.style.alignContent = "center";
@@ -1473,6 +1501,7 @@ function renderSelectedListEntry(selectedListElement, node) {
         listEntry.classList.add("selected-item-tree");
     } else {
         listEntry.classList.add("selected-item-root");
+        listEntry.classList.add("selected-item-flat");
     }
     if (node.isAutoAdded) {
         listEntry.classList.add("selected-item-auto");
@@ -1489,26 +1518,29 @@ function renderSelectedListEntry(selectedListElement, node) {
     const showTreeToggle = hasChildren && node.depth > 0;
     const isCollapsed = showTreeToggle && isTreeNodeCollapsed(node.pathKey);
 
-    const treeToggleButton = document.createElement("button");
-    treeToggleButton.classList.add(elementClassButton, "selected-tree-toggle-button");
-    treeToggleButton.type = "button";
+    let treeToggleButton = null;
+    if (node.depth > 0) {
+        treeToggleButton = document.createElement("button");
+        treeToggleButton.classList.add(elementClassButton, "selected-tree-toggle-button");
+        treeToggleButton.type = "button";
 
-    if (showTreeToggle) {
-        treeToggleButton.textContent = isCollapsed ? "▸" : "▾";
-        treeToggleButton.setAttribute("aria-label", isCollapsed ? "Expand children" : "Collapse children");
-        treeToggleButton.title = isCollapsed ? "Show children" : "Hide children";
-        treeToggleButton.addEventListener("click", (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            setTreeNodeCollapsed(node.pathKey, !isCollapsed);
-            updateView();
-        });
-    } else {
-        treeToggleButton.classList.add("is-empty");
-        treeToggleButton.setAttribute("aria-hidden", "true");
-        treeToggleButton.tabIndex = -1;
-        treeToggleButton.disabled = true;
-        treeToggleButton.textContent = "";
+        if (showTreeToggle) {
+            treeToggleButton.textContent = isCollapsed ? "▸" : "▾";
+            treeToggleButton.setAttribute("aria-label", isCollapsed ? "Expand children" : "Collapse children");
+            treeToggleButton.title = isCollapsed ? "Show children" : "Hide children";
+            treeToggleButton.addEventListener("click", (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setTreeNodeCollapsed(node.pathKey, !isCollapsed);
+                updateView();
+            });
+        } else {
+            treeToggleButton.classList.add("is-empty");
+            treeToggleButton.setAttribute("aria-hidden", "true");
+            treeToggleButton.tabIndex = -1;
+            treeToggleButton.disabled = true;
+            treeToggleButton.textContent = "";
+        }
     }
 
     const pinButton = document.createElement("button");
@@ -1619,7 +1651,9 @@ function renderSelectedListEntry(selectedListElement, node) {
     if (quantityControl) {
         listEntry.appendChild(quantityControl);
     }
-    listEntry.appendChild(treeToggleButton);
+    if (treeToggleButton) {
+        listEntry.appendChild(treeToggleButton);
+    }
     listEntry.appendChild(itemLink);
     listEntry.appendChild(pinButton);
     selectedListElement.appendChild(listEntry);
