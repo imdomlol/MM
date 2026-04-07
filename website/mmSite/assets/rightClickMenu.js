@@ -1,5 +1,12 @@
-import { gAllItems } from "./app.js";
+import { gAllItems, gAllRecipes } from "./app.js";
 import { updateView } from "./craft.js";
+import {
+  isRecursiveModeEnabled,
+  recomputeRecursiveMarks,
+  RECURSIVE_SOURCE_AUTO,
+  RECURSIVE_SOURCE_MANUAL,
+  normalizeQuantity,
+} from "./recursiveCraft.js";
 
 // CONFIG
 const LIST_CONTAINER_SELECTOR = "#allRecipes, #ingredientsList, #resultsList, #relatedRecipesList, #trackedList, #playerInventoryList, #selectedList";
@@ -104,7 +111,14 @@ function openMenu(x, y, link){
 
   const selectedBtn = menu.querySelector('[data-action="toggle-selected"]');
   if (selectedBtn) {
-    selectedBtn.textContent = marks[key]?.selected ? "Remove" : "Select";
+    const isSelected = !!marks[key]?.selected;
+    const isAutoSelected = marks[key]?.recursiveSource === RECURSIVE_SOURCE_AUTO;
+
+    if (isSelected && isAutoSelected) {
+      selectedBtn.textContent = "Promote (Manual)";
+    } else {
+      selectedBtn.textContent = isSelected ? "Remove" : "Select";
+    }
   }
 
   const favBtn = menu.querySelector('[data-action="toggle-favorited"]');
@@ -170,9 +184,19 @@ menu.addEventListener("click", (e) => {
   }
 
   if(action === "toggle-selected"){
-    entry.selected = !entry.selected;
-    if (entry.selected && (!Number.isFinite(Number(entry.qty)) || Number(entry.qty) < 1)) {
-      entry.qty = 1;
+    if (entry.selected && entry.recursiveSource === RECURSIVE_SOURCE_AUTO) {
+      entry.recursiveSource = RECURSIVE_SOURCE_MANUAL;
+      entry.selected = true;
+      entry.qty = normalizeQuantity(entry.qty);
+    } else {
+      entry.selected = !entry.selected;
+
+      if (entry.selected) {
+        entry.recursiveSource = RECURSIVE_SOURCE_MANUAL;
+        entry.qty = normalizeQuantity(entry.qty);
+      } else {
+        delete entry.recursiveSource;
+      }
     }
   }
 
@@ -184,6 +208,12 @@ menu.addEventListener("click", (e) => {
     delete marks[key];
   } else {
     marks[key] = entry;
+  }
+
+  if (action === "toggle-selected" && isRecursiveModeEnabled()) {
+    const recomputed = recomputeRecursiveMarks(marks, gAllItems, gAllRecipes);
+    for (const existingKey of Object.keys(marks)) delete marks[existingKey];
+    Object.assign(marks, recomputed);
   }
 
   saveMarks(marks);

@@ -1,6 +1,14 @@
 import { loadMarks, saveMarks } from "./rightClickMenu.js"
 import { applyMarksToAll } from "./rightClickMenu.js";
-import { gAllRecipes } from "./app.js";
+import { gAllItems, gAllRecipes } from "./app.js";
+import {
+    isRecursiveModeEnabled,
+    getCraftRunsForQuantity,
+    recomputeRecursiveMarks,
+    setRecursiveModeEnabled,
+    RECURSIVE_SOURCE_AUTO,
+    RECURSIVE_SOURCE_MANUAL,
+} from "./recursiveCraft.js";
 
 //HREF AND ID CONSTANTS
 const recipePageBaseHref = "recipe.html?recipeId="
@@ -9,6 +17,8 @@ const pageCraftsId = "craft"
 
 //BUTTONS
 const toolbarButtonSaveId = "toolbarSave"
+const toolbarButtonRecursiveId = "toolbarRecursive"
+const selectedTreeCollapsedStorageKey = "mm_selected_tree_collapsed_v1"
 
 //STYLES
 const pageCraftsCardStyleTracked = "Tracked"
@@ -108,12 +118,49 @@ const itemCardCraftingTimeValueIdSuffix = "_craftingTimeValue"
 const itemCardMaterialsSubtitleIdSuffix = "_materialsSubtitle"
 const itemCardNavContainerIdSuffix = "_navContainer"
 const craftCardsDefaultMaxHeight = "75vh"
+const craftCardsMinimumHeightPx = 280
 
 let gTrackedItems = {};
 let gSelectedItems = [];
+let gSelectedTreeCollapsedKeys = new Set();
 let fromScratch = false;
 let mainGrid = null;
 let gCraftCardHeightSyncResizeHandler = null;
+
+function loadSelectedTreeCollapsedKeys() {
+    try {
+        const parsed = JSON.parse(localStorage.getItem(selectedTreeCollapsedStorageKey) || "[]");
+        if (!Array.isArray(parsed)) {
+            gSelectedTreeCollapsedKeys = new Set();
+            return;
+        }
+
+        gSelectedTreeCollapsedKeys = new Set(parsed.filter(v => typeof v === "string" && v.length > 0));
+    } catch {
+        gSelectedTreeCollapsedKeys = new Set();
+    }
+}
+
+function saveSelectedTreeCollapsedKeys() {
+    localStorage.setItem(selectedTreeCollapsedStorageKey, JSON.stringify(Array.from(gSelectedTreeCollapsedKeys)));
+}
+
+function isTreeNodeCollapsed(pathKey) {
+    if (!pathKey) return false;
+    return gSelectedTreeCollapsedKeys.has(pathKey);
+}
+
+function setTreeNodeCollapsed(pathKey, isCollapsed) {
+    if (!pathKey) return;
+
+    if (isCollapsed) {
+        gSelectedTreeCollapsedKeys.add(pathKey);
+    } else {
+        gSelectedTreeCollapsedKeys.delete(pathKey);
+    }
+
+    saveSelectedTreeCollapsedKeys();
+}
 
 const presetCraftGridAreas = [
     pageCraftsCardStyleTracked,
@@ -145,7 +192,8 @@ function syncCraftSummaryCardHeights() {
     if (!skillsCard || !toolsCard) return;
 
     const referenceHeight = Math.max(skillsCard.scrollHeight, toolsCard.scrollHeight);
-    const maxHeight = referenceHeight > 0 ? `${referenceHeight}px` : craftCardsDefaultMaxHeight;
+    const clampedHeight = Math.max(referenceHeight, craftCardsMinimumHeightPx);
+    const maxHeight = `${clampedHeight}px`;
 
     const syncedCards = [
         getCraftCardByGridArea(pageCraftsCardStyleSelected),
@@ -157,6 +205,7 @@ function syncCraftSummaryCardHeights() {
 
     for (const card of syncedCards) {
         if (!card) continue;
+        card.style.minHeight = `${craftCardsMinimumHeightPx}px`;
         card.style.height = maxHeight;
         card.style.maxHeight = maxHeight;
     }
@@ -229,6 +278,11 @@ function setSelectedItemQuantity(item, quantity) {
     const markKey = getSelectedItemMarkKey(item);
     if (!markKey || !gTrackedItems[markKey]) return;
 
+    if (gTrackedItems[markKey].recursiveSource === RECURSIVE_SOURCE_AUTO) {
+        return;
+    }
+
+    gTrackedItems[markKey].recursiveSource = RECURSIVE_SOURCE_MANUAL;
     gTrackedItems[markKey].qty = normalizeSelectedQuantity(quantity);
     saveMarks(gTrackedItems);
     updateView();
@@ -294,6 +348,28 @@ function setupButtonSave(){
 
         URL.revokeObjectURL(url);
         a.remove();
+    });
+}
+
+function updateRecursiveToggleButtonState() {
+    const button = document.getElementById(toolbarButtonRecursiveId);
+    if (!button) return;
+
+    const enabled = isRecursiveModeEnabled();
+    button.textContent = enabled ? "Recursive: ON" : "Recursive: OFF";
+    button.classList.toggle("is-active", enabled);
+}
+
+function setupRecursiveToggleButton() {
+    const button = document.getElementById(toolbarButtonRecursiveId);
+    if (!button) return;
+
+    updateRecursiveToggleButtonState();
+
+    button.addEventListener("click", () => {
+        const nextState = !isRecursiveModeEnabled();
+        setRecursiveModeEnabled(nextState);
+        updateView();
     });
 }
 
@@ -485,6 +561,7 @@ function addCardToolbar(baseElement){
 
     appendButton(cardBase, elementClass = elementClassButton, elementId = "testButton", elementText = "Clear")
     appendButton(cardBase, elementClass = elementClassButton, elementId = "test2Button", elementText = "Push")
+    appendButton(cardBase, elementClass = elementClassButton, elementId = toolbarButtonRecursiveId, elementText = "Recursive: OFF")
     appendButton(cardBase, elementClass = elementClassButton, elementId = "toolbarSave", elementText = "Save")
     appendButton(cardBase, elementClass = elementClassButton, elementId = "test4Button", elementText = "Load")
     appendDropdown(cardBase, elementId = "testDropdown")
@@ -613,6 +690,11 @@ function updateItemCard(baseElement, item, recipeId = item.reqRecipeId){
                         selectedItem.reqRecipeId = prevRecipeId;
                     }
                 }
+
+                if (itemMarkKey && gTrackedItems[itemMarkKey]) {
+                    gTrackedItems[itemMarkKey].reqRecipeId = prevRecipeId;
+                    saveMarks(gTrackedItems);
+                }
                 
                 updateView();
             });
@@ -631,6 +713,11 @@ function updateItemCard(baseElement, item, recipeId = item.reqRecipeId){
                     if (selectedItem.itemId === item.itemId){
                         selectedItem.reqRecipeId = nextRecipeId;
                     }
+                }
+
+                if (itemMarkKey && gTrackedItems[itemMarkKey]) {
+                    gTrackedItems[itemMarkKey].reqRecipeId = nextRecipeId;
+                    saveMarks(gTrackedItems);
                 }
 
                 updateView();
@@ -716,7 +803,8 @@ function getSelectedItems(){
             item.reqRecipeId = itemRecipeIds.length > 0 ? itemRecipeIds[0] : undefined;
         }
 
-        item.qty = normalizeSelectedQuantity(previouslySelectedItem?.qty ?? item.qty ?? 1);
+        // Prioritize the persisted mark quantity so recursive recomputes are reflected immediately.
+        item.qty = normalizeSelectedQuantity(item.qty ?? previouslySelectedItem?.qty ?? 1);
 
         if (isSelected){
             output.push(
@@ -856,7 +944,7 @@ function getCraftingTime(selectedItems = getSelectedItems()){
             }
 
             if (recipe){
-                totalTime += (recipe[itemPropertyCraftingTime] || 0) * itemQuantity;
+                totalTime += (recipe[itemPropertyCraftingTime] || 0) * getCraftRunsForQuantity(recipe, itemQuantity, item.itemId);
             }
         }
     }
@@ -873,13 +961,31 @@ function getMaterialListFromSelectedItems(selectedItems = getSelectedItems()){
         let recipeId = item.reqRecipeId;
         const recipe = gAllRecipes.find(r => r.recipeId === recipeId);
         if (recipe){
+            const craftRuns = getCraftRunsForQuantity(recipe, itemQuantity, item.itemId);
             for (const material of recipe[itemPropertyMaterials]){
                 let materialName = material[itemPropertyMaterialsName];
                 let materialQuantity = material[itemPropertyMaterialsQuantity];
+                const materialContribution = materialQuantity * craftRuns;
+                const consumerName = item[markerTextContentProperty] || "Unknown Item";
 
-                output[materialName] = output[materialName] || {qty: 0};
-                output[materialName].qty += materialQuantity * itemQuantity;
+                output[materialName] = output[materialName] || {qty: 0, breakdown: []};
+                output[materialName].qty += materialContribution;
                 output[materialName].recipeId = recipeId;
+
+                const existingBreakdown = output[materialName].breakdown.find(entry => {
+                    return entry.itemId === item.itemId && entry.recipeId === recipeId;
+                });
+
+                if (existingBreakdown) {
+                    existingBreakdown.qty += materialContribution;
+                } else {
+                    output[materialName].breakdown.push({
+                        itemId: item.itemId || "",
+                        recipeId,
+                        itemName: consumerName,
+                        qty: materialContribution,
+                    });
+                }
             }
         }
     }
@@ -887,10 +993,405 @@ function getMaterialListFromSelectedItems(selectedItems = getSelectedItems()){
     return output;
 }
 
+function formatMaterialBreakdownTooltip(materialName, materialInfo = {}) {
+    const breakdown = Array.isArray(materialInfo.breakdown) ? materialInfo.breakdown : [];
+    const totalQty = Math.max(0, Math.floor(Number(materialInfo.qty) || 0));
+
+    function formatQty(value) {
+        return Math.max(0, Math.floor(Number(value) || 0));
+    }
+
+    const lines = [
+        `${materialName}`,
+        `Total needed: x ${totalQty}`,
+    ];
+
+    if (breakdown.length > 0) {
+        lines.push("Used by:");
+        for (const entry of breakdown) {
+            lines.push(`- ${entry.itemName} x ${formatQty(entry.qty)}`);
+        }
+    }
+
+    return lines.join("\n");
+}
+
+function getTrackedEntryByItemId(itemId) {
+    if (!itemId) return { key: "", entry: null };
+
+    if (gTrackedItems[itemId]?.itemId === itemId) {
+        return { key: itemId, entry: gTrackedItems[itemId] };
+    }
+
+    for (const key in gTrackedItems) {
+        const entry = gTrackedItems[key];
+        if (entry?.itemId === itemId) {
+            return { key, entry };
+        }
+    }
+
+    return { key: "", entry: null };
+}
+
+function getDisplayNameForItem(itemId, fallback = "Unknown Item") {
+    if (!itemId) return fallback;
+
+    const tracked = getTrackedEntryByItemId(itemId).entry;
+    if (tracked?.[markerTextContentProperty]) return tracked[markerTextContentProperty];
+
+    const itemData = gAllItems.find(i => i.itemId === itemId);
+    return itemData?.name || fallback;
+}
+
+function getRecipeForTreeNode(itemId, preferredRecipeId = "") {
+    const tracked = getTrackedEntryByItemId(itemId).entry;
+    const recipeIds = Array.isArray(tracked?.recipeIds)
+        ? tracked.recipeIds
+        : (gAllItems.find(i => i.itemId === itemId)?.recipeIds || []);
+
+    const chosenRecipeId = (preferredRecipeId && recipeIds.includes(preferredRecipeId))
+        ? preferredRecipeId
+        : (tracked?.reqRecipeId && recipeIds.includes(tracked.reqRecipeId))
+            ? tracked.reqRecipeId
+            : (recipeIds[0] || "");
+
+    if (!chosenRecipeId) return null;
+    return gAllRecipes.find(r => r.recipeId === chosenRecipeId) || null;
+}
+
+function buildRecursiveTreeNode(itemId, qty, depth = 0, path = new Set(), parentNodeId = "", nodeIdFactory = null, pathKey = "") {
+    const nodeId = nodeIdFactory ? nodeIdFactory(itemId, depth) : `${itemId || "node"}_${depth}`;
+    const effectivePathKey = pathKey || `${itemId || "node"}:root`;
+    const normalizedQty = normalizeSelectedQuantity(qty);
+    const { key: markKey, entry } = getTrackedEntryByItemId(itemId);
+    const isAutoAdded = entry?.recursiveSource === RECURSIVE_SOURCE_AUTO;
+
+    const node = {
+        nodeId,
+        parentNodeId,
+        pathKey: effectivePathKey,
+        itemId,
+        textContent: getDisplayNameForItem(itemId),
+        qty: normalizedQty,
+        depth,
+        markKey,
+        isAutoAdded,
+        children: [],
+    };
+
+    if (itemId && path.has(itemId)) {
+        return node;
+    }
+
+    const nextPath = new Set(path);
+    if (itemId) nextPath.add(itemId);
+
+    const recipe = getRecipeForTreeNode(itemId, entry?.reqRecipeId);
+    if (!recipe || !Array.isArray(recipe[itemPropertyMaterials])) {
+        return node;
+    }
+
+    for (let materialIndex = 0; materialIndex < recipe[itemPropertyMaterials].length; materialIndex++) {
+        const material = recipe[itemPropertyMaterials][materialIndex];
+        const childItemId = material[itemPropertyMaterialsItemId];
+        const materialQty = Number(material[itemPropertyMaterialsQuantity]);
+        if (!childItemId || !Number.isFinite(materialQty) || materialQty <= 0) continue;
+
+        const childTrackedEntry = getTrackedEntryByItemId(childItemId).entry;
+        if (!childTrackedEntry?.[markerPropertySelected]) {
+            continue;
+        }
+
+        const childRequiredQty = Math.ceil(materialQty * normalizedQty);
+        const childNode = buildRecursiveTreeNode(
+            childItemId,
+            childRequiredQty,
+            depth + 1,
+            nextPath,
+            nodeId,
+            nodeIdFactory,
+            `${effectivePathKey}>${childItemId}:${materialIndex}`,
+        );
+
+        node.children.push(childNode);
+    }
+
+    return node;
+}
+
+function buildRecursiveSelectedTrees() {
+    let treeNodeCounter = 0;
+    const nodeIdFactory = (itemId, depth) => {
+        treeNodeCounter += 1;
+        return `${itemId || "node"}_${depth}_${treeNodeCounter}`;
+    };
+
+    const manualRoots = gSelectedItems.filter(item => {
+        const markKey = getSelectedItemMarkKey(item);
+        return gTrackedItems[markKey]?.recursiveSource !== RECURSIVE_SOURCE_AUTO;
+    });
+
+    return manualRoots.map(item => {
+        const rootQty = getSelectedItemQuantity(item);
+        const rootPathKey = `${item.itemId || "root"}:root`;
+        return buildRecursiveTreeNode(item.itemId, rootQty, 0, new Set(), "", nodeIdFactory, rootPathKey);
+    });
+}
+
+function renderSelectedListEntry(selectedListElement, node) {
+    const itemMarkKey = node.markKey;
+    const itemQuantity = normalizeSelectedQuantity(node.qty);
+    const quantityControlIdBase = (itemMarkKey || node.itemId || node.textContent || "selected").toString().replace(/\s+/g, "_");
+
+    const listEntry = document.createElement("li");
+    listEntry.classList.add(pageCraftsSelectedListItemClass);
+    listEntry.dataset.treeNodeId = node.nodeId || "";
+    listEntry.dataset.treeParentNodeId = node.parentNodeId || "";
+    listEntry.style.setProperty("--selected-tree-depth", String(node.depth));
+    if (node.depth > 0) {
+        listEntry.classList.add("selected-item-tree");
+    } else {
+        listEntry.classList.add("selected-item-root");
+    }
+    if (node.isAutoAdded) {
+        listEntry.classList.add("selected-item-auto");
+        listEntry.classList.add("selected-item-no-qty");
+        listEntry.title = `${node.textContent || "Unknown Item"} x ${itemQuantity}`;
+    }
+
+    if (node.depth > 0) {
+        listEntry.style.paddingLeft = `${0.55 + (node.depth * 0.6)}rem`;
+    }
+
+    const isPinned = !!gTrackedItems[itemMarkKey]?.[markerPropertyPinned];
+    const hasChildren = Array.isArray(node.children) && node.children.length > 0;
+    const showTreeToggle = hasChildren && node.depth > 0;
+    const isCollapsed = showTreeToggle && isTreeNodeCollapsed(node.pathKey);
+
+    const treeToggleButton = document.createElement("button");
+    treeToggleButton.classList.add(elementClassButton, "selected-tree-toggle-button");
+    treeToggleButton.type = "button";
+
+    if (showTreeToggle) {
+        treeToggleButton.textContent = isCollapsed ? "▸" : "▾";
+        treeToggleButton.setAttribute("aria-label", isCollapsed ? "Expand children" : "Collapse children");
+        treeToggleButton.title = isCollapsed ? "Show children" : "Hide children";
+        treeToggleButton.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setTreeNodeCollapsed(node.pathKey, !isCollapsed);
+            updateView();
+        });
+    } else {
+        treeToggleButton.classList.add("is-empty");
+        treeToggleButton.setAttribute("aria-hidden", "true");
+        treeToggleButton.tabIndex = -1;
+        treeToggleButton.disabled = true;
+        treeToggleButton.textContent = "";
+    }
+
+    const pinButton = document.createElement("button");
+    pinButton.classList.add(elementClassButton, pageCraftsSelectedPinButtonClass);
+    pinButton.type = "button";
+    pinButton.setAttribute("aria-label", isPinned ? "Unpin item" : "Pin item");
+    pinButton.title = isPinned ? "Unpin item" : "Pin item";
+    pinButton.textContent = "⚲";
+    pinButton.style.color = isPinned ? "var(--textYellow)" : "rgba(242,242,242,0.45)";
+    pinButton.style.visibility = itemMarkKey ? "visible" : "hidden";
+
+    pinButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (!itemMarkKey) return;
+        setPinnedState(itemMarkKey, !isPinned);
+        updateView();
+    });
+
+    let quantityControl = null;
+
+    const itemLink = document.createElement("a");
+    itemLink.classList.add(pageCraftsSelectedLabelClass);
+    itemLink.textContent = node.textContent || "Unknown Item";
+    if (node.itemId) {
+        itemLink.href = `${itemPageBaseHref}${node.itemId}`;
+    }
+
+    if (node.isAutoAdded) {
+        itemLink.title = `${node.textContent || "Unknown Item"} x ${itemQuantity}`;
+    }
+
+    if (node.isAutoAdded) {
+        const qtyText = document.createElement("span");
+        qtyText.classList.add(pageCraftsCardStyleQuantity);
+        qtyText.textContent = `x ${itemQuantity}`;
+        itemLink.appendChild(qtyText);
+    }
+
+    const showEditableQuantity = !node.isAutoAdded && !!itemMarkKey;
+
+    if (showEditableQuantity) {
+        quantityControl = document.createElement("div");
+        quantityControl.classList.add(pageCraftsSelectedQuantityControlClass);
+
+        const quantityInput = document.createElement("input");
+        quantityInput.classList.add(pageCraftsSelectedQuantityInputClass);
+        quantityInput.id = `${quantityControlIdBase}_qty`;
+        quantityInput.type = "number";
+        quantityInput.min = "1";
+        quantityInput.step = "1";
+        quantityInput.inputMode = "numeric";
+        quantityInput.value = String(itemQuantity);
+        quantityInput.setAttribute("aria-label", `Quantity for ${node.textContent || "selected item"}`);
+
+        quantityInput.addEventListener("change", () => {
+            const trackedItem = gTrackedItems[itemMarkKey];
+            if (!trackedItem) return;
+            setSelectedItemQuantity(trackedItem, quantityInput.value);
+        });
+
+        const quantityStepper = document.createElement("div");
+        quantityStepper.classList.add(pageCraftsSelectedQuantityStepperClass);
+
+        const decrementButton = document.createElement("button");
+        decrementButton.classList.add(
+            elementClassButton,
+            pageCraftsSelectedQuantityHoverButtonClass,
+            pageCraftsSelectedQuantityHoverButtonMinusClass,
+        );
+        decrementButton.type = "button";
+        decrementButton.setAttribute("aria-label", `Decrease quantity for ${node.textContent || "selected item"}`);
+        decrementButton.textContent = "-";
+
+        const incrementButton = document.createElement("button");
+        incrementButton.classList.add(
+            elementClassButton,
+            pageCraftsSelectedQuantityHoverButtonClass,
+            pageCraftsSelectedQuantityHoverButtonPlusClass,
+        );
+        incrementButton.type = "button";
+        incrementButton.setAttribute("aria-label", `Increase quantity for ${node.textContent || "selected item"}`);
+        incrementButton.textContent = "+";
+
+        decrementButton.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const trackedItem = gTrackedItems[itemMarkKey];
+            if (!trackedItem) return;
+            setSelectedItemQuantity(trackedItem, normalizeSelectedQuantity(quantityInput.value) - 1);
+        });
+
+        incrementButton.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const trackedItem = gTrackedItems[itemMarkKey];
+            if (!trackedItem) return;
+            setSelectedItemQuantity(trackedItem, normalizeSelectedQuantity(quantityInput.value) + 1);
+        });
+
+        quantityStepper.appendChild(decrementButton);
+        quantityStepper.appendChild(incrementButton);
+        quantityControl.appendChild(quantityInput);
+        quantityControl.appendChild(quantityStepper);
+    }
+
+    if (quantityControl) {
+        listEntry.appendChild(quantityControl);
+    }
+    listEntry.appendChild(treeToggleButton);
+    listEntry.appendChild(itemLink);
+    listEntry.appendChild(pinButton);
+    selectedListElement.appendChild(listEntry);
+}
+
+function clearSelectedTreePathState(selectedListElement) {
+    const pathNodes = selectedListElement.querySelectorAll(
+        ".selected-item-tree-path, .selected-item-tree-parent, .selected-item-tree-sibling, .selected-item-tree-ancestor",
+    );
+    for (const pathNode of pathNodes) {
+        pathNode.classList.remove(
+            "selected-item-tree-path",
+            "selected-item-tree-parent",
+            "selected-item-tree-sibling",
+            "selected-item-tree-ancestor",
+        );
+    }
+}
+
+function updateSelectedTreePathState(selectedListElement, hoveredTreeNode) {
+    clearSelectedTreePathState(selectedListElement);
+
+    if (!hoveredTreeNode || !hoveredTreeNode.classList.contains("selected-item-tree")) {
+        return;
+    }
+
+    hoveredTreeNode.classList.add("selected-item-tree-path");
+
+    const parentNodeId = hoveredTreeNode.dataset.treeParentNodeId || "";
+    if (!parentNodeId) return;
+
+    const siblingNodes = selectedListElement.querySelectorAll(
+        `li.selected-item-tree[data-tree-parent-node-id="${parentNodeId}"]`,
+    );
+    for (const siblingNode of siblingNodes) {
+        siblingNode.classList.add("selected-item-tree-sibling");
+    }
+
+    const parentNode = selectedListElement.querySelector(`[data-tree-node-id="${parentNodeId}"]`);
+    if (parentNode) {
+        parentNode.classList.add("selected-item-tree-parent");
+
+        if (parentNode.classList.contains("selected-item-tree")) {
+            parentNode.classList.add("selected-item-tree-path");
+        }
+    }
+}
+
+function setupSelectedTreeHoverGuides(selectedListElement) {
+    if (!selectedListElement || selectedListElement.dataset.treeHoverBound === "1") {
+        return;
+    }
+
+    selectedListElement.dataset.treeHoverBound = "1";
+
+    selectedListElement.addEventListener("mousemove", (event) => {
+        const hoveredTreeNode = event.target.closest("li.selected-item-tree");
+        updateSelectedTreePathState(selectedListElement, hoveredTreeNode);
+    });
+
+    selectedListElement.addEventListener("mouseleave", () => {
+        clearSelectedTreePathState(selectedListElement);
+    });
+}
+
+function renderTreeDepthFirst(selectedListElement, node) {
+    renderSelectedListEntry(selectedListElement, node);
+
+    if (isTreeNodeCollapsed(node.pathKey)) {
+        return;
+    }
+
+    for (const child of node.children) {
+        renderTreeDepthFirst(selectedListElement, child);
+    }
+}
+
 // - CARD LIST POPULATION FUNCTIONS
 function populateSelectedList(){
     let selectedListElement = document.getElementById(pageCraftsSelectedListId)
     selectedListElement.innerHTML = "";
+
+    if (isRecursiveModeEnabled()) {
+        setupSelectedTreeHoverGuides(selectedListElement);
+
+        const trees = buildRecursiveSelectedTrees();
+        for (const rootNode of trees) {
+            renderTreeDepthFirst(selectedListElement, rootNode);
+        }
+
+        applyMarksToAll();
+        return;
+    }
 
     for (const item of gSelectedItems){
         const itemQuantity = getSelectedItemQuantity(item);
@@ -899,6 +1400,13 @@ function populateSelectedList(){
 
         const listEntry = document.createElement("li");
         listEntry.classList.add(pageCraftsSelectedListItemClass);
+        listEntry.classList.add("selected-item-flat");
+
+        const isAutoAdded = gTrackedItems[itemMarkKey]?.recursiveSource === RECURSIVE_SOURCE_AUTO;
+        if (isAutoAdded) {
+            listEntry.classList.add("selected-item-auto");
+            listEntry.title = "Auto-added by recursive crafting";
+        }
 
         const isPinned = !!gTrackedItems[itemMarkKey]?.[markerPropertyPinned];
 
@@ -975,6 +1483,12 @@ function populateSelectedList(){
             setSelectedItemQuantity(item, normalizeSelectedQuantity(quantityInput.value) + 1);
         });
 
+        if (isAutoAdded) {
+            quantityInput.disabled = true;
+            quantityInput.setAttribute("aria-label", `${item[markerTextContentProperty] || "selected item"} quantity is locked by recursive mode`);
+            quantityStepper.style.display = "none";
+        }
+
         quantityStepper.appendChild(decrementButton);
         quantityStepper.appendChild(incrementButton);
         quantityControl.appendChild(quantityInput);
@@ -1042,7 +1556,11 @@ function populateMaterialsList(materialsList = document.getElementById(pageCraft
         let textContent = `${materialName}`;
         let subtextContent = `x ${qty}`;
         let textHref = `${recipePageBaseHref}${materialsNeeded[materialName].recipeId}`;
-        addEntryToList(materialsList, textContent, textHref, undefined, subtextContent, pageCraftsCardStyleQuantity);
+        const materialLink = addEntryToList(materialsList, textContent, textHref, undefined, subtextContent, pageCraftsCardStyleQuantity);
+        if (materialLink) {
+            materialLink.title = formatMaterialBreakdownTooltip(materialName, materialsNeeded[materialName]);
+            materialLink.dataset.materialBreakdown = JSON.stringify(materialsNeeded[materialName].breakdown || []);
+        }
     }
 }
 
@@ -1158,7 +1676,14 @@ function initIndividualItemCards(){
 export function updateView() {
     //Update globals
     gTrackedItems = loadMarks()
+
+    if (isRecursiveModeEnabled()) {
+        gTrackedItems = recomputeRecursiveMarks(gTrackedItems, gAllItems, gAllRecipes);
+        saveMarks(gTrackedItems);
+    }
+
     gSelectedItems = getSelectedItems();
+    updateRecursiveToggleButtonState();
 
     //Tracked Card Setup
     initTrackedCard();
@@ -1192,6 +1717,7 @@ export function initCraftPage() {
     let baseElement = document.getElementById(pageCraftsId), elementClass = "";
     gTrackedItems = loadMarks()
     gSelectedItems = getSelectedItems(gTrackedItems);
+    loadSelectedTreeCollapsedKeys();
 
     //Base Grid Setup
     mainGrid = addGridBase(baseElement)
@@ -1209,6 +1735,7 @@ export function initCraftPage() {
 
     //Button Functionality Setup
     setupButtonSave();
+    setupRecursiveToggleButton();
 
     //Update Viewport
     updateView();
