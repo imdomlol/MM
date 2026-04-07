@@ -734,7 +734,7 @@ function addEntryToList(baseElement, textContent, textHref = "", textColor = "",
 
     li.appendChild(a);
     baseElement.appendChild(li);
-    return (li, a);
+    return { li, a };
 }
 
 // - GRIDS
@@ -1342,6 +1342,89 @@ function getMaterialListFromSelectedItems(selectedItems = getSelectedItems()){
     return output;
 }
 
+function getRecipeDisplayName(recipeId = "") {
+    if (!recipeId) return "Unknown Recipe";
+
+    const recipe = gAllRecipes.find(r => r.recipeId === recipeId);
+    return recipe?.name || recipeId;
+}
+
+function getToolListFromSelectedItems(selectedItems = getSelectedItems()) {
+    const output = {};
+
+    for (const item of selectedItems) {
+        const recipeId = item.reqRecipeId;
+        const recipe = gAllRecipes.find(r => r.recipeId === recipeId);
+        if (!recipe) continue;
+
+        const consumerName = item[markerTextContentProperty] || "Unknown Item";
+
+        for (const tool of recipe[itemPropertyTools]) {
+            const toolName = tool;
+
+            output[toolName] = output[toolName] || { recipeId, breakdown: [] };
+
+            const existingBreakdown = output[toolName].breakdown.find(entry => {
+                return entry.itemId === item.itemId && entry.recipeId === recipeId;
+            });
+
+            if (!existingBreakdown) {
+                output[toolName].breakdown.push({
+                    itemId: item.itemId || "",
+                    recipeId,
+                    itemName: consumerName,
+                });
+            }
+        }
+    }
+
+    return output;
+}
+
+function getSkillListFromSelectedItems(selectedItems = getSelectedItems()) {
+    const output = {};
+
+    for (const item of selectedItems) {
+        const recipeId = item.reqRecipeId;
+        const recipe = gAllRecipes.find(r => r.recipeId === recipeId);
+        if (!recipe) continue;
+
+        const consumerName = item[markerTextContentProperty] || "Unknown Item";
+
+        for (const skill of recipe[itemPropertySkills]) {
+            const skillName = skill[itemPropertySkillsName];
+            const skillLevel = Number(skill[itemPropertySkillsLevel]) || 0;
+
+            // Skip if skill level is 0 (only happens for XP, not a real requirement)
+            if (skillLevel <= 0) {
+                continue;
+            }
+
+            output[skillName] = output[skillName] || { level: skillLevel, recipeId, breakdown: [] };
+
+            if (skillLevel > output[skillName].level) {
+                output[skillName].level = skillLevel;
+                output[skillName].recipeId = recipeId;
+            }
+
+            const existingBreakdown = output[skillName].breakdown.find(entry => {
+                return entry.itemId === item.itemId && entry.recipeId === recipeId;
+            });
+
+            if (!existingBreakdown) {
+                output[skillName].breakdown.push({
+                    itemId: item.itemId || "",
+                    recipeId,
+                    itemName: consumerName,
+                    level: skillLevel,
+                });
+            }
+        }
+    }
+
+    return output;
+}
+
 function formatMaterialBreakdownTooltip(materialName, materialInfo = {}) {
     const breakdown = Array.isArray(materialInfo.breakdown) ? materialInfo.breakdown : [];
     const totalQty = Math.max(0, Math.floor(Number(materialInfo.qty) || 0));
@@ -1359,6 +1442,41 @@ function formatMaterialBreakdownTooltip(materialName, materialInfo = {}) {
         lines.push("Used by:");
         for (const entry of breakdown) {
             lines.push(`- ${entry.itemName} x ${formatQty(entry.qty)}`);
+        }
+    }
+
+    return lines.join("\n");
+}
+
+function formatToolBreakdownTooltip(toolName, toolInfo = {}) {
+    const breakdown = Array.isArray(toolInfo.breakdown) ? toolInfo.breakdown : [];
+
+    const lines = [
+        `${toolName}`,
+    ];
+
+    if (breakdown.length > 0) {
+        lines.push("Used by:");
+        for (const entry of breakdown) {
+            lines.push(`- ${entry.itemName} (${getRecipeDisplayName(entry.recipeId)})`);
+        }
+    }
+
+    return lines.join("\n");
+}
+
+function formatSkillBreakdownTooltip(skillName, skillInfo = {}) {
+    const breakdown = Array.isArray(skillInfo.breakdown) ? skillInfo.breakdown : [];
+
+    const lines = [
+        `${skillName}`,
+        `Highest level needed: ${Number(skillInfo.level) || 0}`,
+    ];
+
+    if (breakdown.length > 0) {
+        lines.push("Used by:");
+        for (const entry of breakdown) {
+            lines.push(`- ${entry.itemName} (${getRecipeDisplayName(entry.recipeId)}) lvl ${entry.level}`);
         }
     }
 
@@ -1879,13 +1997,17 @@ function populateSkillList(skillList = document.getElementById(pageCraftsSkillsL
     skillList.innerHTML = "";
 
     let skillsRequired = getGreatestSkillLevels(gSelectedItems);
+    let skillsBreakdown = getSkillListFromSelectedItems(gSelectedItems);
     for (const skillName in skillsRequired){
         let skillLevel = skillsRequired[skillName].level
         let skillColor = skillsRequired[skillName].mandatory ? "" : itemSkillMandatory;
 
         let textContent = `${skillName} ${skillLevel}`;
         let textHref = `${recipePageBaseHref}${skillsRequired[skillName].recipeId}`;
-        addEntryToList(skillList, textContent, textHref, skillColor);
+        const { li, a } = addEntryToList(skillList, textContent, textHref, skillColor);
+        const tooltipText = formatSkillBreakdownTooltip(skillName, skillsBreakdown[skillName]);
+        li.title = tooltipText;
+        a.title = tooltipText;
     }
 }
 
@@ -1893,10 +2015,14 @@ function populateToolsList(toolsList = document.getElementById(pageCraftsToolsLi
     toolsList.innerHTML = "";
 
     let toolsNeeded = getToolsNeeded(gSelectedItems);
+    let toolsBreakdown = getToolListFromSelectedItems(gSelectedItems);
     for (const toolName in toolsNeeded){
         let textContent = toolName;
         let textHref = `${recipePageBaseHref}${toolsNeeded[toolName].recipeId}`;
-        addEntryToList(toolsList, textContent, textHref);
+        const { li, a } = addEntryToList(toolsList, textContent, textHref);
+        const tooltipText = formatToolBreakdownTooltip(toolName, toolsBreakdown[toolName]);
+        li.title = tooltipText;
+        a.title = tooltipText;
     }
 }
 
