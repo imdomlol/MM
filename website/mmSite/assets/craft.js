@@ -443,6 +443,21 @@ function createAskPickerOverlay(materialName = "", materialsList = null) {
             setAskSelectionForMaterial(materialName, playerName, clampedQty);
         }
 
+        // Reset manual input to 0, then recalculate from Always + Ask only
+        setMaterialProgress(materialName, {
+            haveQty: 0,
+            originalQty: 0,
+            isChecked: false,
+        });
+
+        // Recalculate with Always + Ask (manual is now 0)
+        const effectiveQty = getEffectiveMaterialHaveQuantity(materialName);
+        setMaterialProgress(materialName, {
+            haveQty: effectiveQty,
+            originalQty: effectiveQty,
+            isChecked: false,
+        });
+
         // Close picker and refresh materials
         overlay.remove();
         if (materialsList) {
