@@ -4,6 +4,7 @@ import { gAllItems, gAllPlayers, gAllRecipes } from "./app.js";
 import {
     isRecursiveModeEnabled,
     getCraftRunsForQuantity,
+    getRecipeOutputQuantity,
     recomputeRecursiveMarks,
     setRecursiveModeEnabled,
     RECURSIVE_SOURCE_AUTO,
@@ -396,6 +397,135 @@ function setToolChecked(toolName = "", nextChecked = false) {
 
 function normalizeMaterialCheckKey(materialName = "") {
     return String(materialName).trim().toLowerCase();
+}
+
+function getSelectedItemByMaterialName(materialName = "") {
+    const materialKey = normalizeMaterialCheckKey(materialName);
+    if (!materialKey) return null;
+
+    return gSelectedItems.find(item => {
+        const itemName = item?.[markerTextContentProperty] || "";
+        return normalizeMaterialCheckKey(itemName) === materialKey;
+    }) || null;
+}
+
+function getSelectedItemRecipe(item) {
+    if (!item) return null;
+
+    const recipeIds = Array.isArray(item.recipeIds) ? item.recipeIds : [];
+    const requestedRecipeId = recipeIds.includes(item.reqRecipeId)
+        ? item.reqRecipeId
+        : recipeIds[0];
+
+    if (!requestedRecipeId) return null;
+    return gAllRecipes.find(recipe => recipe.recipeId === requestedRecipeId) || null;
+}
+
+function applyMaterialProgressDelta(materialName = "", quantityDelta = 0, materialsNeeded = {}) {
+    const key = normalizeMaterialCheckKey(materialName);
+    if (!key || !Number.isFinite(quantityDelta) || quantityDelta === 0) {
+        const currentProgress = getMaterialProgress(materialName);
+        return {
+            previousHaveQty: normalizeMaterialProgressQuantity(currentProgress.haveQty, 0),
+            nextHaveQty: normalizeMaterialProgressQuantity(currentProgress.haveQty, 0),
+        };
+    }
+    if (!materialsNeeded?.[materialName]) {
+        const currentProgress = getMaterialProgress(materialName);
+        return {
+            previousHaveQty: normalizeMaterialProgressQuantity(currentProgress.haveQty, 0),
+            nextHaveQty: normalizeMaterialProgressQuantity(currentProgress.haveQty, 0),
+        };
+    }
+
+    const currentProgress = getMaterialProgress(materialName);
+    const previousHaveQty = normalizeMaterialProgressQuantity(currentProgress.haveQty, 0);
+    const nextHaveQty = normalizeMaterialProgressQuantity(currentProgress.haveQty + quantityDelta, 0);
+    const requiredQty = normalizeMaterialProgressQuantity(materialsNeeded[materialName]?.qty, 0);
+    const nextCheckedState = requiredQty > 0 ? nextHaveQty >= requiredQty : currentProgress.isChecked;
+
+    setMaterialProgress(materialName, {
+        haveQty: nextHaveQty,
+        originalQty: currentProgress.originalQty,
+        isChecked: nextCheckedState,
+    });
+
+    return { previousHaveQty, nextHaveQty };
+}
+
+function getCompletedCraftRunsForMaterialQuantity(materialName = "", haveQty = 0) {
+    const selectedItem = getSelectedItemByMaterialName(materialName);
+    const recipe = getSelectedItemRecipe(selectedItem);
+    if (!selectedItem?.itemId || !recipe) return 0;
+
+    const outputQuantity = getRecipeOutputQuantity(recipe, selectedItem.itemId);
+    if (!Number.isFinite(outputQuantity) || outputQuantity <= 0) return 0;
+
+    const normalizedHaveQty = normalizeMaterialProgressQuantity(haveQty, 0);
+    return Math.floor(normalizedHaveQty / outputQuantity);
+}
+
+function propagateMaterialProgressRunsToChildren(materialName = "", craftRunsDelta = 0, materialsNeeded = {}, path = new Set()) {
+    const parentKey = normalizeMaterialCheckKey(materialName);
+    const normalizedCraftRunsDelta = Number.isFinite(craftRunsDelta) ? Math.floor(craftRunsDelta) : 0;
+
+    if (!parentKey || normalizedCraftRunsDelta === 0) return;
+    if (path.has(parentKey)) return;
+
+    const nextPath = new Set(path);
+    nextPath.add(parentKey);
+
+    const selectedItem = getSelectedItemByMaterialName(materialName);
+    const recipe = getSelectedItemRecipe(selectedItem);
+    if (!selectedItem?.itemId || !recipe || !Array.isArray(recipe[itemPropertyMaterials])) {
+        return;
+    }
+
+    for (const ingredient of recipe[itemPropertyMaterials]) {
+        const childMaterialName = ingredient?.[itemPropertyMaterialsName] || "";
+        const ingredientQty = normalizeMaterialProgressQuantity(ingredient?.[itemPropertyMaterialsQuantity], 0);
+
+        if (!childMaterialName || ingredientQty <= 0) continue;
+        if (!materialsNeeded?.[childMaterialName]) continue;
+
+        const childDelta = ingredientQty * normalizedCraftRunsDelta;
+        const { previousHaveQty, nextHaveQty } = applyMaterialProgressDelta(childMaterialName, childDelta, materialsNeeded);
+        const previousRuns = getCompletedCraftRunsForMaterialQuantity(childMaterialName, previousHaveQty);
+        const nextRuns = getCompletedCraftRunsForMaterialQuantity(childMaterialName, nextHaveQty);
+        const childCraftRunsDelta = nextRuns - previousRuns;
+
+        propagateMaterialProgressRunsToChildren(childMaterialName, childCraftRunsDelta, materialsNeeded, nextPath);
+    }
+}
+
+function propagateMaterialCompletionToChildren(materialName = "", quantityDelta = 0, materialsNeeded = {}, path = new Set()) {
+    const parentKey = normalizeMaterialCheckKey(materialName);
+    if (!parentKey || !Number.isFinite(quantityDelta) || quantityDelta === 0) return;
+    if (path.has(parentKey)) return;
+
+    const nextPath = new Set(path);
+    nextPath.add(parentKey);
+
+    const selectedItem = getSelectedItemByMaterialName(materialName);
+    const recipe = getSelectedItemRecipe(selectedItem);
+    if (!selectedItem?.itemId || !recipe || !Array.isArray(recipe[itemPropertyMaterials])) {
+        return;
+    }
+
+    const direction = quantityDelta > 0 ? 1 : -1;
+    const craftRuns = getCraftRunsForQuantity(recipe, Math.abs(quantityDelta), selectedItem.itemId);
+    if (craftRuns <= 0) return;
+
+    for (const ingredient of recipe[itemPropertyMaterials]) {
+        const childMaterialName = ingredient?.[itemPropertyMaterialsName] || "";
+        const ingredientQty = normalizeMaterialProgressQuantity(ingredient?.[itemPropertyMaterialsQuantity], 0);
+        if (!childMaterialName || ingredientQty <= 0) continue;
+        if (!materialsNeeded?.[childMaterialName]) continue;
+
+        const childDelta = direction * ingredientQty * craftRuns;
+        applyMaterialProgressDelta(childMaterialName, childDelta, materialsNeeded);
+        propagateMaterialCompletionToChildren(childMaterialName, childDelta, materialsNeeded, nextPath);
+    }
 }
 
 function getMaterialProgress(materialName = "") {
@@ -2256,6 +2386,8 @@ function populateMaterialsList(materialsList = document.getElementById(pageCraft
         }
 
         const applyMaterialHaveQuantity = (nextHaveQtyRaw) => {
+            const previousProgress = getMaterialProgress(materialName);
+            const previousHaveQty = normalizeMaterialProgressQuantity(previousProgress.haveQty, 0);
             const nextHaveQty = normalizeMaterialProgressQuantity(nextHaveQtyRaw, 0);
             haveInput.value = String(nextHaveQty);
 
@@ -2266,17 +2398,25 @@ function populateMaterialsList(materialsList = document.getElementById(pageCraft
                 isChecked: nextCheckedState,
             });
 
+            const previousCompletedRuns = getCompletedCraftRunsForMaterialQuantity(materialName, previousHaveQty);
+            const nextCompletedRuns = getCompletedCraftRunsForMaterialQuantity(materialName, nextHaveQty);
+            const craftRunsDelta = nextCompletedRuns - previousCompletedRuns;
+            propagateMaterialProgressRunsToChildren(materialName, craftRunsDelta, materialsNeeded);
+
             materialRow.classList.toggle("is-checked", nextCheckedState);
             nameSpan.setAttribute("aria-pressed", nextCheckedState ? "true" : "false");
+            populateMaterialsList(materialsList, true);
             initCraftingTimeCard();
         };
 
         const toggleMaterialCompletion = () => {
             const nextProgress = toggleMaterialChecked(materialName, qty);
-            haveInput.value = String(nextProgress.haveQty);
-            const nextCheckedState = isMaterialChecked(materialName, qty);
-            materialRow.classList.toggle("is-checked", nextCheckedState);
-            nameSpan.setAttribute("aria-pressed", nextCheckedState ? "true" : "false");
+            const quantityDelta = nextProgress.isChecked
+                ? normalizeMaterialProgressQuantity(qty, 0)
+                : -normalizeMaterialProgressQuantity(qty, 0);
+
+            propagateMaterialCompletionToChildren(materialName, quantityDelta, materialsNeeded);
+            populateMaterialsList(materialsList, true);
             initCraftingTimeCard();
         };
 
