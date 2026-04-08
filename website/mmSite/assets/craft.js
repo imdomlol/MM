@@ -879,6 +879,12 @@ function getEffectiveMaterialHaveQuantity(materialName = "") {
     return Math.max(0, total);
 }
 
+function getDerivedBorrowQuantityForMaterial(materialName = "") {
+    const alwaysQty = normalizeMaterialProgressQuantity(getAlwaysPlayerInventoryForMaterial(materialName), 0);
+    const askQty = normalizeMaterialProgressQuantity(getTotalAskSelectedForMaterial(materialName), 0);
+    return Math.max(0, alwaysQty + askQty);
+}
+
 function setMaterialProgress(materialName = "", nextProgress = {}) {
     const key = normalizeMaterialCheckKey(materialName);
     if (!key) return;
@@ -2684,7 +2690,7 @@ function populateMaterialsList(materialsList = document.getElementById(pageCraft
         haveInput.step = "1";
         haveInput.inputMode = "numeric";
         haveInput.classList.add("materials-have-input");
-        haveInput.value = String(normalizeMaterialProgressQuantity(materialProgress.haveQty, 0));
+        haveInput.value = String(getEffectiveMaterialHaveQuantity(materialName));
         haveInput.setAttribute("aria-label", `Quantity you have for ${materialName}`);
 
         const quantityPrefix = document.createElement("span");
@@ -2698,6 +2704,9 @@ function populateMaterialsList(materialsList = document.getElementById(pageCraft
         const totalQty = document.createElement("span");
         totalQty.classList.add(pageCraftsCardStyleQuantity, "materials-qty-total");
         totalQty.textContent = String(qty);
+
+        const askPlayersWithInventory = getAskPlayersWithInventoryForMaterial(materialName);
+        const hasAskPlayers = askPlayersWithInventory.length > 0;
 
         const haveWrapper = document.createElement("div");
         haveWrapper.classList.add("materials-have-wrapper");
@@ -2734,49 +2743,35 @@ function populateMaterialsList(materialsList = document.getElementById(pageCraft
             materialRow.classList.add("is-checked");
         }
 
-        // Add Ask indicator if there are Ask players with matching inventory
-        const askPlayersWithInventory = getAskPlayersWithInventoryForMaterial(materialName);
-        let askButton = null;
-        if (askPlayersWithInventory.length > 0) {
-            const askContainer = document.createElement("div");
-            askContainer.classList.add("materials-ask-container");
-
-            askButton = document.createElement("button");
-            askButton.type = "button";
-            askButton.classList.add(elementClassButton, "materials-ask-button");
-            askButton.textContent = "Ask";
-            askButton.setAttribute("aria-label", `Choose quantities from Ask players for ${materialName}`);
-            askButton.title = "Ask players for this material";
-
-            askButton.addEventListener("click", (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                const picker = createAskPickerOverlay(materialName, materialsList);
-                document.body.appendChild(picker);
-            });
-
-            askContainer.appendChild(askButton);
-            materialRow.appendChild(askContainer);
+        if (hasAskPlayers) {
+            materialRow.classList.add("has-ask-available");
+            materialRow.setAttribute("title", `${materialRow.getAttribute("title") || ""}\n\nAsk available: use the Ask button.`);
+            nameSpan.classList.add("is-ask-disabled");
+            nameSpan.style.cursor = "default";
+            nameSpan.setAttribute("aria-disabled", "true");
+            nameSpan.removeAttribute("aria-pressed");
+            nameSpan.removeAttribute("role");
+            nameSpan.tabIndex = -1;
         }
 
         const applyMaterialHaveQuantity = (nextHaveQtyRaw) => {
-            const previousProgress = getMaterialProgress(materialName);
-            const previousHaveQty = normalizeMaterialProgressQuantity(previousProgress.haveQty, 0);
-            const nextHaveQty = normalizeMaterialProgressQuantity(nextHaveQtyRaw, 0);
-            haveInput.value = String(nextHaveQty);
+            const previousEffectiveQty = getEffectiveMaterialHaveQuantity(materialName);
+            const nextDisplayedQty = normalizeMaterialProgressQuantity(nextHaveQtyRaw, 0);
+            const derivedBorrowQty = getDerivedBorrowQuantityForMaterial(materialName);
+            const nextManualHaveQty = Math.max(0, nextDisplayedQty - derivedBorrowQty);
 
-            // Use effective quantity (manual + always + ask) for checked calculation
             setMaterialProgress(materialName, {
-                haveQty: nextHaveQty,
-                originalQty: nextHaveQty,
+                haveQty: nextManualHaveQty,
+                originalQty: nextManualHaveQty,
                 isChecked: false,
             });
-            
+
             const nextEffectiveQty = getEffectiveMaterialHaveQuantity(materialName);
+            haveInput.value = String(nextEffectiveQty);
             const nextCheckedState = nextEffectiveQty >= qty;
 
-            const previousCompletedRuns = getCompletedCraftRunsForMaterialQuantity(materialName, previousHaveQty);
-            const nextCompletedRuns = getCompletedCraftRunsForMaterialQuantity(materialName, nextHaveQty);
+            const previousCompletedRuns = getCompletedCraftRunsForMaterialQuantity(materialName, previousEffectiveQty);
+            const nextCompletedRuns = getCompletedCraftRunsForMaterialQuantity(materialName, nextEffectiveQty);
             const craftRunsDelta = nextCompletedRuns - previousCompletedRuns;
             propagateMaterialProgressRunsToChildren(materialName, craftRunsDelta, materialsNeeded);
 
@@ -2797,18 +2792,20 @@ function populateMaterialsList(materialsList = document.getElementById(pageCraft
             initCraftingTimeCard();
         };
 
-        nameSpan.addEventListener("click", (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            toggleMaterialCompletion();
-        });
-
-        nameSpan.addEventListener("keydown", (event) => {
-            if (event.key === "Enter" || event.key === " ") {
+        if (!hasAskPlayers) {
+            nameSpan.addEventListener("click", (event) => {
                 event.preventDefault();
+                event.stopPropagation();
                 toggleMaterialCompletion();
-            }
-        });
+            });
+
+            nameSpan.addEventListener("keydown", (event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    toggleMaterialCompletion();
+                }
+            });
+        }
 
         haveInput.addEventListener("change", () => {
             applyMaterialHaveQuantity(haveInput.value);
@@ -2828,6 +2825,39 @@ function populateMaterialsList(materialsList = document.getElementById(pageCraft
 
         materialRow.appendChild(nameSpan);
         materialRow.appendChild(haveWrapper);
+
+        if (hasAskPlayers) {
+            materialRow.classList.add("has-ask-available");
+            materialRow.setAttribute("title", `${materialRow.getAttribute("title") || ""}\n\nClick anywhere on this row to ask players for this material.`);
+            materialRow.tabIndex = 0;
+            materialRow.setAttribute("role", "button");
+            materialRow.setAttribute("aria-label", `Ask players for ${materialName}`);
+
+            const openAskPicker = (event) => {
+                if (event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+
+                const picker = createAskPickerOverlay(materialName, materialsList);
+                document.body.appendChild(picker);
+            };
+
+            materialRow.addEventListener("click", (event) => {
+                if (event.target === haveInput || event.target.closest(".materials-have-stepper")) {
+                    return;
+                }
+
+                openAskPicker(event);
+            });
+
+            materialRow.addEventListener("keydown", (event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                    openAskPicker(event);
+                }
+            });
+        }
+
         listItem.appendChild(materialRow);
         materialsList.appendChild(listItem);
     }
