@@ -240,6 +240,52 @@ function setAskSelectionForMaterial(materialName = "", playerName = "", selected
     saveAskSelections();
 }
 
+function setAskSelectionsForMaterial(materialName = "", nextSelections = {}) {
+    const key = normalizeMaterialCheckKey(materialName);
+    if (!key) return;
+
+    const currentSelections = getAskSelectionsForMaterial(materialName);
+    for (const playerName of Object.keys(currentSelections)) {
+        setAskSelectionForMaterial(materialName, playerName, 0);
+    }
+
+    for (const [playerName, selectedQty] of Object.entries(nextSelections || {})) {
+        if (!playerName) continue;
+        setAskSelectionForMaterial(materialName, playerName, selectedQty);
+    }
+}
+
+function getAutoAskSelectionMap(materialName = "", requiredQty = 0, currentEffectiveQty = 0) {
+    const required = normalizeMaterialProgressQuantity(requiredQty, 0);
+    const effective = normalizeMaterialProgressQuantity(currentEffectiveQty, 0);
+    const targetQty = Math.max(0, required - effective);
+
+    if (targetQty <= 0) return {};
+
+    const askPlayers = getAskPlayersWithInventoryForMaterial(materialName)
+        .slice()
+        .sort((left, right) => {
+            const qtyDelta = right.availableQty - left.availableQty;
+            if (qtyDelta !== 0) return qtyDelta;
+            return left.playerName.localeCompare(right.playerName);
+        });
+
+    const nextSelections = {};
+    let remainingQty = targetQty;
+
+    for (const { playerName, availableQty } of askPlayers) {
+        if (remainingQty <= 0) break;
+
+        const takeQty = Math.min(normalizeMaterialProgressQuantity(availableQty, 0), remainingQty);
+        if (takeQty <= 0) continue;
+
+        nextSelections[playerName] = takeQty;
+        remainingQty -= takeQty;
+    }
+
+    return nextSelections;
+}
+
 function clearAskSelectionsForPlayer(playerName = "") {
     if (!playerName) return;
 
@@ -335,7 +381,7 @@ function getTotalAskSelectedForMaterial(materialName = "") {
 
 // ===== ASK PICKER UI =====
 
-function createAskPickerOverlay(materialName = "", materialsList = null) {
+function createAskPickerOverlay(materialName = "", materialsList = null, requiredQty = 0) {
     const overlay = document.createElement("div");
     overlay.classList.add("ask-picker-overlay");
     overlay.setAttribute("role", "dialog");
@@ -343,6 +389,7 @@ function createAskPickerOverlay(materialName = "", materialsList = null) {
 
     const askPlayers = getAskPlayersWithInventoryForMaterial(materialName);
     const currentSelections = getAskSelectionsForMaterial(materialName) || {};
+    const materialsNeeded = getMaterialListFromSelectedItems(gSelectedItems);
 
     // Guard: ensure we have valid ask players
     if (!askPlayers || !Array.isArray(askPlayers) || askPlayers.length === 0) {
@@ -415,6 +462,12 @@ function createAskPickerOverlay(materialName = "", materialsList = null) {
     resetButton.textContent = "Reset";
     resetButton.setAttribute("aria-label", "Clear all selections");
 
+    const autoButton = document.createElement("button");
+    autoButton.type = "button";
+    autoButton.classList.add(elementClassButton, "ask-picker-auto");
+    autoButton.textContent = "Auto";
+    autoButton.setAttribute("aria-label", "Automatically choose quantities");
+
     const closeButton = document.createElement("button");
     closeButton.type = "button";
     closeButton.classList.add(elementClassButton, "ask-picker-close");
@@ -422,6 +475,7 @@ function createAskPickerOverlay(materialName = "", materialsList = null) {
     closeButton.setAttribute("aria-label", "Close picker");
 
     buttonContainer.appendChild(applyButton);
+    buttonContainer.appendChild(autoButton);
     buttonContainer.appendChild(resetButton);
     buttonContainer.appendChild(closeButton);
     pickerContent.appendChild(buttonContainer);
@@ -430,6 +484,7 @@ function createAskPickerOverlay(materialName = "", materialsList = null) {
 
     // Event handlers
     applyButton.addEventListener("click", () => {
+        const previousEffectiveQty = getEffectiveMaterialHaveQuantity(materialName);
         const inputs = playersList.querySelectorAll("input");
         for (const input of inputs) {
             const playerName = input.dataset.playerName;
@@ -443,12 +498,11 @@ function createAskPickerOverlay(materialName = "", materialsList = null) {
             setAskSelectionForMaterial(materialName, playerName, clampedQty);
         }
 
-        // Keep manual progress at 0 so the row reflects only derived inventory.
-        setMaterialProgress(materialName, {
-            haveQty: 0,
-            originalQty: 0,
-            isChecked: false,
-        });
+        const nextEffectiveQty = getEffectiveMaterialHaveQuantity(materialName);
+        const quantityDelta = nextEffectiveQty - previousEffectiveQty;
+        if (quantityDelta !== 0) {
+            propagateMaterialCompletionToChildren(materialName, quantityDelta, materialsNeeded);
+        }
 
         // Close picker and refresh materials
         overlay.remove();
@@ -458,10 +512,45 @@ function createAskPickerOverlay(materialName = "", materialsList = null) {
         }
     });
 
+    autoButton.addEventListener("click", () => {
+        const previousEffectiveQty = getEffectiveMaterialHaveQuantity(materialName);
+        const currentEffectiveQty = getEffectiveMaterialHaveQuantity(materialName);
+        const autoSelections = getAutoAskSelectionMap(materialName, requiredQty, currentEffectiveQty);
+        setAskSelectionsForMaterial(materialName, autoSelections);
+
+        const nextEffectiveQty = getEffectiveMaterialHaveQuantity(materialName);
+        const quantityDelta = nextEffectiveQty - previousEffectiveQty;
+        if (quantityDelta !== 0) {
+            propagateMaterialCompletionToChildren(materialName, quantityDelta, materialsNeeded);
+        }
+
+        overlay.remove();
+        if (materialsList) {
+            populateMaterialsList(materialsList, true);
+            initCraftingTimeCard();
+        }
+    });
+
     resetButton.addEventListener("click", () => {
+        const previousEffectiveQty = getEffectiveMaterialHaveQuantity(materialName);
         const inputs = playersList.querySelectorAll("input");
         for (const input of inputs) {
-            input.value = "0";
+            const playerName = input.dataset.playerName;
+            if (!playerName) continue;
+
+            setAskSelectionForMaterial(materialName, playerName, 0);
+        }
+
+        const nextEffectiveQty = getEffectiveMaterialHaveQuantity(materialName);
+        const quantityDelta = nextEffectiveQty - previousEffectiveQty;
+        if (quantityDelta !== 0) {
+            propagateMaterialCompletionToChildren(materialName, quantityDelta, materialsNeeded);
+        }
+
+        overlay.remove();
+        if (materialsList) {
+            populateMaterialsList(materialsList, true);
+            initCraftingTimeCard();
         }
     });
 
@@ -639,11 +728,13 @@ function loadMaterialsProgress() {
         for (const [key, value] of Object.entries(parsed)) {
             if (!key || !value || typeof value !== "object") continue;
 
-            const haveQty = normalizeMaterialProgressQuantity(value.haveQty, 0);
-            const originalQty = normalizeMaterialProgressQuantity(value.originalQty, haveQty);
-            const isChecked = Boolean(value.isChecked);
+            // Migrate legacy "checked off" entries back to baseline quantities.
+            const wasChecked = Boolean(value.isChecked);
+            const parsedHaveQty = normalizeMaterialProgressQuantity(value.haveQty, 0);
+            const originalQty = normalizeMaterialProgressQuantity(value.originalQty, parsedHaveQty);
+            const haveQty = wasChecked ? originalQty : parsedHaveQty;
 
-            out[key] = { haveQty, originalQty, isChecked };
+            out[key] = { haveQty, originalQty };
         }
 
         gMaterialProgressByKey = out;
@@ -769,13 +860,10 @@ function applyMaterialProgressDelta(materialName = "", quantityDelta = 0, materi
     const currentProgress = getMaterialProgress(materialName);
     const previousHaveQty = normalizeMaterialProgressQuantity(currentProgress.haveQty, 0);
     const nextHaveQty = normalizeMaterialProgressQuantity(currentProgress.haveQty + quantityDelta, 0);
-    const requiredQty = normalizeMaterialProgressQuantity(materialsNeeded[materialName]?.qty, 0);
-    const nextCheckedState = requiredQty > 0 ? nextHaveQty >= requiredQty : currentProgress.isChecked;
 
     setMaterialProgress(materialName, {
         haveQty: nextHaveQty,
         originalQty: currentProgress.originalQty,
-        isChecked: nextCheckedState,
     });
 
     return { previousHaveQty, nextHaveQty };
@@ -858,7 +946,7 @@ function propagateMaterialCompletionToChildren(materialName = "", quantityDelta 
 
 function getMaterialProgress(materialName = "") {
     const key = normalizeMaterialCheckKey(materialName);
-    return gMaterialProgressByKey[key] || { haveQty: 0, originalQty: 0, isChecked: false };
+    return gMaterialProgressByKey[key] || { haveQty: 0, originalQty: 0 };
 }
 
 function getEffectiveMaterialHaveQuantity(materialName = "") {
@@ -884,50 +972,31 @@ function setMaterialProgress(materialName = "", nextProgress = {}) {
     const current = getMaterialProgress(materialName);
     const haveQty = normalizeMaterialProgressQuantity(nextProgress.haveQty, current.haveQty);
     const originalQty = normalizeMaterialProgressQuantity(nextProgress.originalQty, current.originalQty);
-    const isChecked = Boolean(nextProgress.isChecked);
 
-    gMaterialProgressByKey[key] = { haveQty, originalQty, isChecked };
+    gMaterialProgressByKey[key] = { haveQty, originalQty };
     saveMaterialsProgress();
 }
 
 function isMaterialChecked(materialName = "", requiredQty = 0) {
-    const progress = getMaterialProgress(materialName);
     const required = normalizeMaterialProgressQuantity(requiredQty, 0);
-    if (required > 0) {
-        const effectiveHave = getEffectiveMaterialHaveQuantity(materialName);
-        if (effectiveHave >= required) {
-            return true;
-        }
-    }
-
-    return !!progress.isChecked;
+    if (required <= 0) return false;
+    return getEffectiveMaterialHaveQuantity(materialName) >= required;
 }
 
-function toggleMaterialChecked(materialName = "", requiredQty = 0) {
-    const key = normalizeMaterialCheckKey(materialName);
-    if (!key) return getMaterialProgress(materialName);
+function rebuildMaterialProgressFromBorrowSources(selectedItems = gSelectedItems) {
+    const materialsNeeded = getMaterialListFromSelectedItems(selectedItems);
 
-    const progress = getMaterialProgress(materialName);
-    const required = normalizeMaterialProgressQuantity(requiredQty, 0);
+    // Parent-discount progress is derived from current borrow sources.
+    gMaterialProgressByKey = {};
 
-    if (!progress.isChecked) {
-        const next = {
-            haveQty: required,
-            originalQty: progress.haveQty,
-            isChecked: true,
-        };
-        setMaterialProgress(materialName, next);
-        return next;
+    for (const materialName in materialsNeeded) {
+        const sourceQty = normalizeMaterialProgressQuantity(getDerivedBorrowQuantityForMaterial(materialName), 0);
+        if (sourceQty <= 0) continue;
+
+        propagateMaterialCompletionToChildren(materialName, sourceQty, materialsNeeded);
     }
 
-    const restoredQty = normalizeMaterialProgressQuantity(progress.originalQty, 0);
-    const next = {
-        haveQty: restoredQty,
-        originalQty: restoredQty,
-        isChecked: false,
-    };
-    setMaterialProgress(materialName, next);
-    return next;
+    saveMaterialsProgress();
 }
 
 function loadSelectedTreeCollapsedKeys() {
@@ -2660,7 +2729,6 @@ function populateMaterialsList(materialsList = document.getElementById(pageCraft
     let materialsNeeded = getMaterialListFromSelectedItems(gSelectedItems);
     for (const materialName in materialsNeeded){
         let qty = normalizeMaterialProgressQuantity(materialsNeeded[materialName].qty || 0, 0);
-        const materialProgress = getMaterialProgress(materialName);
         const isChecked = isMaterialChecked(materialName, qty);
 
         const listItem = document.createElement("li");
@@ -2671,14 +2739,11 @@ function populateMaterialsList(materialsList = document.getElementById(pageCraft
         const nameSpan = document.createElement("span");
         nameSpan.classList.add("materials-check-name");
         nameSpan.textContent = materialName;
-        nameSpan.setAttribute("role", "button");
-        nameSpan.tabIndex = 0;
-        nameSpan.setAttribute("aria-label", `Toggle completion for ${materialName}`);
-        nameSpan.setAttribute("aria-pressed", isChecked ? "true" : "false");
 
         const haveValue = document.createElement("span");
         haveValue.classList.add("materials-have-value");
-        haveValue.textContent = String(getEffectiveMaterialHaveQuantity(materialName));
+        const displayedHaveQty = getEffectiveMaterialHaveQuantity(materialName);
+        haveValue.textContent = String(displayedHaveQty);
         haveValue.setAttribute("aria-label", `Quantity you have for ${materialName}`);
 
         const quantityPrefix = document.createElement("span");
@@ -2695,7 +2760,6 @@ function populateMaterialsList(materialsList = document.getElementById(pageCraft
 
         const askPlayersWithInventory = getAskPlayersWithInventoryForMaterial(materialName);
         const hasAskPlayers = askPlayersWithInventory.length > 0;
-        const isAutoCompleted = isChecked && !materialProgress.isChecked;
 
         const haveWrapper = document.createElement("div");
         haveWrapper.classList.add("materials-have-wrapper");
@@ -2711,71 +2775,7 @@ function populateMaterialsList(materialsList = document.getElementById(pageCraft
 
         if (hasAskPlayers) {
             materialRow.classList.add("has-ask-available");
-            materialRow.setAttribute("title", `${materialRow.getAttribute("title") || ""}\n\nAsk available: use the Ask button.`);
-            nameSpan.classList.add("is-ask-disabled");
-            nameSpan.style.cursor = "default";
-            nameSpan.setAttribute("aria-disabled", "true");
-            nameSpan.removeAttribute("aria-pressed");
-            nameSpan.removeAttribute("role");
-            nameSpan.tabIndex = -1;
-        } else if (isAutoCompleted) {
-            nameSpan.classList.add("is-ask-disabled");
-            nameSpan.style.cursor = "default";
-            nameSpan.setAttribute("aria-disabled", "true");
-            nameSpan.removeAttribute("aria-pressed");
-            nameSpan.removeAttribute("role");
-            nameSpan.tabIndex = -1;
-        }
-
-        const toggleMaterialCompletion = () => {
-            if (isAutoCompleted) {
-                return;
-            }
-
-            const currentProgress = getMaterialProgress(materialName);
-            const currentEffectiveQty = getEffectiveMaterialHaveQuantity(materialName);
-            const derivedBorrowQty = getDerivedBorrowQuantityForMaterial(materialName);
-            const isCurrentlyChecked = !!currentProgress.isChecked;
-
-            let nextManualHaveQty = 0;
-            let nextCheckedState = false;
-
-            if (!isCurrentlyChecked) {
-                if (currentEffectiveQty >= qty) {
-                    return;
-                }
-
-                nextManualHaveQty = Math.max(0, qty - derivedBorrowQty);
-                nextCheckedState = true;
-            }
-
-            setMaterialProgress(materialName, {
-                haveQty: nextManualHaveQty,
-                originalQty: nextManualHaveQty,
-                isChecked: nextCheckedState,
-            });
-
-            const nextEffectiveQty = getEffectiveMaterialHaveQuantity(materialName);
-            const quantityDelta = nextEffectiveQty - currentEffectiveQty;
-
-            propagateMaterialCompletionToChildren(materialName, quantityDelta, materialsNeeded);
-            populateMaterialsList(materialsList, true);
-            initCraftingTimeCard();
-        };
-
-        if (!hasAskPlayers) {
-            nameSpan.addEventListener("click", (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                toggleMaterialCompletion();
-            });
-
-            nameSpan.addEventListener("keydown", (event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    toggleMaterialCompletion();
-                }
-            });
+            materialRow.setAttribute("title", `${materialRow.getAttribute("title") || ""}\n\nSingle click: open Ask popup.`);
         }
 
         materialRow.appendChild(nameSpan);
@@ -2783,7 +2783,7 @@ function populateMaterialsList(materialsList = document.getElementById(pageCraft
 
         if (hasAskPlayers) {
             materialRow.classList.add("has-ask-available");
-            materialRow.setAttribute("title", `${materialRow.getAttribute("title") || ""}\n\nClick anywhere on this row to ask players for this material.`);
+            materialRow.setAttribute("title", `${materialRow.getAttribute("title") || ""}\n\nSingle click: Ask popup.`);
             materialRow.tabIndex = 0;
             materialRow.setAttribute("role", "button");
             materialRow.setAttribute("aria-label", `Ask players for ${materialName}`);
@@ -2794,7 +2794,7 @@ function populateMaterialsList(materialsList = document.getElementById(pageCraft
                     event.stopPropagation();
                 }
 
-                const picker = createAskPickerOverlay(materialName, materialsList);
+                const picker = createAskPickerOverlay(materialName, materialsList, qty);
                 document.body.appendChild(picker);
             };
 
@@ -2941,6 +2941,7 @@ export function updateView() {
     }
 
     gSelectedItems = getSelectedItems();
+    rebuildMaterialProgressFromBorrowSources(gSelectedItems);
     updateRecursiveToggleButtonState();
 
     //Tracked Card Setup
@@ -2973,6 +2974,7 @@ export function updateView() {
 function recomputeMaterialsDisplay() {
     // Lightweight recomputation that only updates materials and crafting time
     // without forcing churn on other cards
+    rebuildMaterialProgressFromBorrowSources();
     initMaterialsCard();
     initCraftingTimeCard();
     requestAnimationFrame(() => {
