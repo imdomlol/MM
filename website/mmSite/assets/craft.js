@@ -443,18 +443,10 @@ function createAskPickerOverlay(materialName = "", materialsList = null) {
             setAskSelectionForMaterial(materialName, playerName, clampedQty);
         }
 
-        // Reset manual input to 0, then recalculate from Always + Ask only
+        // Keep manual progress at 0 so the row reflects only derived inventory.
         setMaterialProgress(materialName, {
             haveQty: 0,
             originalQty: 0,
-            isChecked: false,
-        });
-
-        // Recalculate with Always + Ask (manual is now 0)
-        const effectiveQty = getEffectiveMaterialHaveQuantity(materialName);
-        setMaterialProgress(materialName, {
-            haveQty: effectiveQty,
-            originalQty: effectiveQty,
             isChecked: false,
         });
 
@@ -2703,6 +2695,7 @@ function populateMaterialsList(materialsList = document.getElementById(pageCraft
 
         const askPlayersWithInventory = getAskPlayersWithInventoryForMaterial(materialName);
         const hasAskPlayers = askPlayersWithInventory.length > 0;
+        const isAutoCompleted = isChecked && !materialProgress.isChecked;
 
         const haveWrapper = document.createElement("div");
         haveWrapper.classList.add("materials-have-wrapper");
@@ -2725,13 +2718,45 @@ function populateMaterialsList(materialsList = document.getElementById(pageCraft
             nameSpan.removeAttribute("aria-pressed");
             nameSpan.removeAttribute("role");
             nameSpan.tabIndex = -1;
+        } else if (isAutoCompleted) {
+            nameSpan.classList.add("is-ask-disabled");
+            nameSpan.style.cursor = "default";
+            nameSpan.setAttribute("aria-disabled", "true");
+            nameSpan.removeAttribute("aria-pressed");
+            nameSpan.removeAttribute("role");
+            nameSpan.tabIndex = -1;
         }
 
         const toggleMaterialCompletion = () => {
-            const nextProgress = toggleMaterialChecked(materialName, qty);
-            const quantityDelta = nextProgress.isChecked
-                ? normalizeMaterialProgressQuantity(qty, 0)
-                : -normalizeMaterialProgressQuantity(qty, 0);
+            if (isAutoCompleted) {
+                return;
+            }
+
+            const currentProgress = getMaterialProgress(materialName);
+            const currentEffectiveQty = getEffectiveMaterialHaveQuantity(materialName);
+            const derivedBorrowQty = getDerivedBorrowQuantityForMaterial(materialName);
+            const isCurrentlyChecked = !!currentProgress.isChecked;
+
+            let nextManualHaveQty = 0;
+            let nextCheckedState = false;
+
+            if (!isCurrentlyChecked) {
+                if (currentEffectiveQty >= qty) {
+                    return;
+                }
+
+                nextManualHaveQty = Math.max(0, qty - derivedBorrowQty);
+                nextCheckedState = true;
+            }
+
+            setMaterialProgress(materialName, {
+                haveQty: nextManualHaveQty,
+                originalQty: nextManualHaveQty,
+                isChecked: nextCheckedState,
+            });
+
+            const nextEffectiveQty = getEffectiveMaterialHaveQuantity(materialName);
+            const quantityDelta = nextEffectiveQty - currentEffectiveQty;
 
             propagateMaterialCompletionToChildren(materialName, quantityDelta, materialsNeeded);
             populateMaterialsList(materialsList, true);
