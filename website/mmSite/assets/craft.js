@@ -379,6 +379,19 @@ function getTotalAskSelectedForMaterial(materialName = "") {
     return Object.values(selections).reduce((sum, qty) => sum + normalizeMaterialProgressQuantity(qty, 0), 0);
 }
 
+function applyAutoAskSelectionForMaterial(materialName = "", requiredQty = 0, materialsNeeded = {}) {
+    const previousEffectiveQty = getEffectiveMaterialHaveQuantity(materialName);
+    const currentEffectiveQty = getEffectiveMaterialHaveQuantity(materialName);
+    const autoSelections = getAutoAskSelectionMap(materialName, requiredQty, currentEffectiveQty);
+    setAskSelectionsForMaterial(materialName, autoSelections);
+
+    const nextEffectiveQty = getEffectiveMaterialHaveQuantity(materialName);
+    const quantityDelta = nextEffectiveQty - previousEffectiveQty;
+    if (quantityDelta !== 0) {
+        propagateMaterialCompletionToChildren(materialName, quantityDelta, materialsNeeded);
+    }
+}
+
 // ===== ASK PICKER UI =====
 
 function createAskPickerOverlay(materialName = "", materialsList = null, requiredQty = 0) {
@@ -468,16 +481,9 @@ function createAskPickerOverlay(materialName = "", materialsList = null, require
     autoButton.textContent = "Auto";
     autoButton.setAttribute("aria-label", "Automatically choose quantities");
 
-    const closeButton = document.createElement("button");
-    closeButton.type = "button";
-    closeButton.classList.add(elementClassButton, "ask-picker-close");
-    closeButton.textContent = "Close";
-    closeButton.setAttribute("aria-label", "Close picker");
-
     buttonContainer.appendChild(applyButton);
     buttonContainer.appendChild(autoButton);
     buttonContainer.appendChild(resetButton);
-    buttonContainer.appendChild(closeButton);
     pickerContent.appendChild(buttonContainer);
 
     overlay.appendChild(pickerContent);
@@ -513,16 +519,7 @@ function createAskPickerOverlay(materialName = "", materialsList = null, require
     });
 
     autoButton.addEventListener("click", () => {
-        const previousEffectiveQty = getEffectiveMaterialHaveQuantity(materialName);
-        const currentEffectiveQty = getEffectiveMaterialHaveQuantity(materialName);
-        const autoSelections = getAutoAskSelectionMap(materialName, requiredQty, currentEffectiveQty);
-        setAskSelectionsForMaterial(materialName, autoSelections);
-
-        const nextEffectiveQty = getEffectiveMaterialHaveQuantity(materialName);
-        const quantityDelta = nextEffectiveQty - previousEffectiveQty;
-        if (quantityDelta !== 0) {
-            propagateMaterialCompletionToChildren(materialName, quantityDelta, materialsNeeded);
-        }
+        applyAutoAskSelectionForMaterial(materialName, requiredQty, materialsNeeded);
 
         overlay.remove();
         if (materialsList) {
@@ -552,10 +549,6 @@ function createAskPickerOverlay(materialName = "", materialsList = null, require
             populateMaterialsList(materialsList, true);
             initCraftingTimeCard();
         }
-    });
-
-    closeButton.addEventListener("click", () => {
-        overlay.remove();
     });
 
     // Close on outside click
@@ -2051,15 +2044,12 @@ function formatMaterialBreakdownTooltip(materialName, materialInfo = {}) {
     }
 
     const lines = [
-        `${materialName}`,
-        `Total needed: x ${totalQty}`,
+        `${materialName} x ${totalQty}`,
+        "Used by:",
     ];
 
-    if (breakdown.length > 0) {
-        lines.push("Used by:");
-        for (const entry of breakdown) {
-            lines.push(`- ${entry.itemName} x ${formatQty(entry.qty)}`);
-        }
+    for (const entry of breakdown) {
+        lines.push(`- ${entry.itemName} x ${formatQty(entry.qty)}`);
     }
 
     return lines.join("\n");
@@ -2775,7 +2765,6 @@ function populateMaterialsList(materialsList = document.getElementById(pageCraft
 
         if (hasAskPlayers) {
             materialRow.classList.add("has-ask-available");
-            materialRow.setAttribute("title", `${materialRow.getAttribute("title") || ""}\n\nSingle click: open Ask popup.`);
         }
 
         materialRow.appendChild(nameSpan);
@@ -2783,7 +2772,6 @@ function populateMaterialsList(materialsList = document.getElementById(pageCraft
 
         if (hasAskPlayers) {
             materialRow.classList.add("has-ask-available");
-            materialRow.setAttribute("title", `${materialRow.getAttribute("title") || ""}\n\nSingle click: Ask popup.`);
             materialRow.tabIndex = 0;
             materialRow.setAttribute("role", "button");
             materialRow.setAttribute("aria-label", `Ask players for ${materialName}`);

@@ -20,6 +20,8 @@
   --skillsMandatory: #fff5cc;
 
   --textYellow: #ffda45;
+  --softHighlightYellow: #ffe78f;
+  --softHighlightYellowRgb: 255, 231, 143;
   --textGreen: #57ff9e;
   --textRed: #ff5757;
 
@@ -1182,32 +1184,36 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus {
 }
 
 .materials-check-item.has-ask-available {
-  border-color: rgba(107, 140, 255, 0.55);
-  box-shadow: 0 0 0 1px rgba(107, 140, 255, 0.14), inset 0 0 0 1px rgba(107, 140, 255, 0.08);
+  border-color: transparent;
+  box-shadow: none;
+  background: rgba(var(--softHighlightYellowRgb), 0.05);
   cursor: pointer;
 }
 
 .materials-check-item.has-ask-available:hover {
-  border-color: rgba(107, 140, 255, 0.8);
-  box-shadow: 0 0 0 1px rgba(107, 140, 255, 0.22), inset 0 0 0 1px rgba(107, 140, 255, 0.12);
+  border-color: var(--border);
+  box-shadow: none;
+  background: rgba(var(--softHighlightYellowRgb), 0.09);
 }
 
 .materials-check-item.has-ask-available:active {
-  box-shadow: 0 0 0 1px rgba(107, 140, 255, 0.18), inset 0 0 0 1px rgba(107, 140, 255, 0.1);
+  background: rgba(var(--softHighlightYellowRgb), 0.12);
 }
 
 [data-theme="light"] .materials-check-item.has-ask-available {
-  border-color: rgba(94, 129, 255, 0.5);
-  box-shadow: 0 0 0 1px rgba(94, 129, 255, 0.12), inset 0 0 0 1px rgba(94, 129, 255, 0.08);
+  border-color: transparent;
+  box-shadow: none;
+  background: rgba(var(--softHighlightYellowRgb), 0.07);
 }
 
 [data-theme="light"] .materials-check-item.has-ask-available:hover {
-  border-color: rgba(94, 129, 255, 0.8);
-  box-shadow: 0 0 0 1px rgba(94, 129, 255, 0.18), inset 0 0 0 1px rgba(94, 129, 255, 0.1);
+  border-color: var(--border);
+  box-shadow: none;
+  background: rgba(var(--softHighlightYellowRgb), 0.11);
 }
 
 .materials-check-item.has-ask-available .materials-check-name {
-  color: var(--textListHover);
+  color: inherit;
 }
 
 .materials-check-item.has-ask-available .materials-check-name.is-ask-disabled {
@@ -1302,15 +1308,14 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus {
 
 .ask-picker-buttons {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.6rem;
   margin-top: 1.2rem;
 }
 
 .ask-picker-apply,
 .ask-picker-auto,
-.ask-picker-reset,
-.ask-picker-close {
+.ask-picker-reset {
   padding: 0.5rem 0.8rem;
   font-size: 0.85rem;
   border-radius: 6px;
@@ -1332,13 +1337,13 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus {
 }
 
 .ask-picker-auto {
-  border-color: var(--accent);
-  background: rgba(107, 140, 255, 0.12);
-  color: var(--textListHover);
+  border-color: var(--textYellow);
+  background: rgba(255, 218, 69, 0.12);
+  color: var(--textYellow);
 }
 
 .ask-picker-auto:hover {
-  background: rgba(107, 140, 255, 0.22);
+  background: rgba(255, 218, 69, 0.22);
 }
 
 .ask-picker-reset {
@@ -1351,18 +1356,9 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus {
   background: rgba(255, 87, 87, 0.22);
 }
 
-.ask-picker-close {
-  border-color: var(--muted);
-}
-
-.ask-picker-close:hover {
-  background: var(--panel);
-  border-color: var(--text);
-}
-
 .ask-picker-apply:active,
-.ask-picker-reset:active,
-.ask-picker-close:active {
+.ask-picker-auto:active,
+.ask-picker-reset:active {
   transform: scale(0.98);
 }
 
@@ -1411,7 +1407,7 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus {
   bottom: 0.25rem;
   width: 1px;
   pointer-events: none;
-  background: rgba(255, 218, 69, 0.38);
+  background: rgba(var(--softHighlightYellowRgb), 0.34);
   opacity: 0;
   transition: opacity 120ms ease;
 }
@@ -1422,7 +1418,7 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus {
   top: 50%;
   left: calc(0.42rem + ((var(--selected-tree-depth) - 1) * var(--selected-tree-step)));
   width: 0.5rem;
-  border-top: 1px solid rgba(255, 218, 69, 0.52);
+  border-top: 1px solid rgba(var(--softHighlightYellowRgb), 0.46);
   transform: translateY(-50%);
   pointer-events: none;
   opacity: 0;
@@ -1457,20 +1453,20 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus {
 
 .selected-item-auto {
   border-left: 0;
-  background: rgba(255, 218, 69, 0.04);
+  background: rgba(var(--softHighlightYellowRgb), 0.05);
 }
 
 .selected-item-auto:hover {
-  background: rgba(255, 218, 69, 0.08);
+  background: rgba(var(--softHighlightYellowRgb), 0.08);
 }
 
 .selected-item-auto .selected-item-label {
-  color: var(--textYellow);
+  color: inherit;
   font-style: normal;
 }
 
 .selected-item-auto .qty {
-  color: rgba(255, 218, 69, 0.92);
+  color: var(--muted);
 }
 
 .selected-item-auto .selected-qty-input {
