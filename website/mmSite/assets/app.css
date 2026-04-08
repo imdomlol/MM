@@ -1134,82 +1134,29 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus {
   overflow: visible;
 }
 
-.materials-have-input-shell {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  overflow: visible;
-}
-
-.materials-have-input {
-  width: 3.4ch;
-  min-width: 3.4ch;
-  height: 1.7rem;
-  padding: 0 0.22rem;
-  text-align: center;
-  border-radius: 999px;
-  border: 1px solid var(--control-border);
-  background: var(--control-bg);
-  color: var(--text);
-}
-
-.materials-have-stepper {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms ease;
-}
-
-.materials-check-item:hover .materials-have-stepper,
-.materials-check-item:focus-within .materials-have-stepper {
-  opacity: 1;
-}
-
-.materials-have-hover-button {
-  position: absolute;
-  top: 50%;
-  pointer-events: auto;
-  min-width: 1.2rem;
-  width: 1.2rem;
-  height: 1.2rem;
+.materials-have-value {
+  display: inline-block;
+  min-width: 2ch;
   padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
   line-height: 1;
-  font-size: 0.72rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  border: 1px solid var(--control-border);
-  background: var(--control-bg);
-  z-index: 2;
-}
-
-.materials-have-hover-button.is-minus {
-  left: 0;
-  transform: translate(calc(-70%), -50%);
-}
-
-.materials-have-hover-button.is-plus {
-  right: 0;
-  transform: translate(70%, -50%);
-}
-
-.materials-have-input::-webkit-outer-spin-button,
-.materials-have-input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-.materials-have-input[type="number"] {
-  -moz-appearance: textfield;
-  appearance: textfield;
 }
 
 .materials-qty-prefix,
 .materials-qty-divider,
 .materials-qty-total {
   margin-left: 0;
+}
+
+.materials-qty-prefix,
+.materials-qty-divider,
+.materials-qty-total,
+.materials-have-value {
+  letter-spacing: 0;
 }
 
 .materials-check-item.is-checked {

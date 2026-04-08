@@ -2684,14 +2684,10 @@ function populateMaterialsList(materialsList = document.getElementById(pageCraft
         nameSpan.setAttribute("aria-label", `Toggle completion for ${materialName}`);
         nameSpan.setAttribute("aria-pressed", isChecked ? "true" : "false");
 
-        const haveInput = document.createElement("input");
-        haveInput.type = "number";
-        haveInput.min = "0";
-        haveInput.step = "1";
-        haveInput.inputMode = "numeric";
-        haveInput.classList.add("materials-have-input");
-        haveInput.value = String(getEffectiveMaterialHaveQuantity(materialName));
-        haveInput.setAttribute("aria-label", `Quantity you have for ${materialName}`);
+        const haveValue = document.createElement("span");
+        haveValue.classList.add("materials-have-value");
+        haveValue.textContent = String(getEffectiveMaterialHaveQuantity(materialName));
+        haveValue.setAttribute("aria-label", `Quantity you have for ${materialName}`);
 
         const quantityPrefix = document.createElement("span");
         quantityPrefix.classList.add(pageCraftsCardStyleQuantity, "materials-qty-prefix");
@@ -2711,31 +2707,8 @@ function populateMaterialsList(materialsList = document.getElementById(pageCraft
         const haveWrapper = document.createElement("div");
         haveWrapper.classList.add("materials-have-wrapper");
 
-        const haveInputShell = document.createElement("div");
-        haveInputShell.classList.add("materials-have-input-shell");
-        haveInputShell.appendChild(haveInput);
-
-        const haveStepper = document.createElement("div");
-        haveStepper.classList.add("materials-have-stepper");
-
-        const haveDecrementButton = document.createElement("button");
-        haveDecrementButton.type = "button";
-        haveDecrementButton.classList.add("materials-have-hover-button", "is-minus", elementClassButton);
-        haveDecrementButton.setAttribute("aria-label", `Decrease have quantity for ${materialName}`);
-        haveDecrementButton.textContent = "-";
-
-        const haveIncrementButton = document.createElement("button");
-        haveIncrementButton.type = "button";
-        haveIncrementButton.classList.add("materials-have-hover-button", "is-plus", elementClassButton);
-        haveIncrementButton.setAttribute("aria-label", `Increase have quantity for ${materialName}`);
-        haveIncrementButton.textContent = "+";
-
-        haveStepper.appendChild(haveDecrementButton);
-        haveStepper.appendChild(haveIncrementButton);
-        haveInputShell.appendChild(haveStepper);
-
         haveWrapper.appendChild(quantityPrefix);
-        haveWrapper.appendChild(haveInputShell);
+        haveWrapper.appendChild(haveValue);
         haveWrapper.appendChild(quantityDivider);
         haveWrapper.appendChild(totalQty);
 
@@ -2753,33 +2726,6 @@ function populateMaterialsList(materialsList = document.getElementById(pageCraft
             nameSpan.removeAttribute("role");
             nameSpan.tabIndex = -1;
         }
-
-        const applyMaterialHaveQuantity = (nextHaveQtyRaw) => {
-            const previousEffectiveQty = getEffectiveMaterialHaveQuantity(materialName);
-            const nextDisplayedQty = normalizeMaterialProgressQuantity(nextHaveQtyRaw, 0);
-            const derivedBorrowQty = getDerivedBorrowQuantityForMaterial(materialName);
-            const nextManualHaveQty = Math.max(0, nextDisplayedQty - derivedBorrowQty);
-
-            setMaterialProgress(materialName, {
-                haveQty: nextManualHaveQty,
-                originalQty: nextManualHaveQty,
-                isChecked: false,
-            });
-
-            const nextEffectiveQty = getEffectiveMaterialHaveQuantity(materialName);
-            haveInput.value = String(nextEffectiveQty);
-            const nextCheckedState = nextEffectiveQty >= qty;
-
-            const previousCompletedRuns = getCompletedCraftRunsForMaterialQuantity(materialName, previousEffectiveQty);
-            const nextCompletedRuns = getCompletedCraftRunsForMaterialQuantity(materialName, nextEffectiveQty);
-            const craftRunsDelta = nextCompletedRuns - previousCompletedRuns;
-            propagateMaterialProgressRunsToChildren(materialName, craftRunsDelta, materialsNeeded);
-
-            materialRow.classList.toggle("is-checked", nextCheckedState);
-            nameSpan.setAttribute("aria-pressed", nextCheckedState ? "true" : "false");
-            populateMaterialsList(materialsList, true);
-            initCraftingTimeCard();
-        };
 
         const toggleMaterialCompletion = () => {
             const nextProgress = toggleMaterialChecked(materialName, qty);
@@ -2807,22 +2753,6 @@ function populateMaterialsList(materialsList = document.getElementById(pageCraft
             });
         }
 
-        haveInput.addEventListener("change", () => {
-            applyMaterialHaveQuantity(haveInput.value);
-        });
-
-        haveDecrementButton.addEventListener("click", (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            applyMaterialHaveQuantity(normalizeMaterialProgressQuantity(haveInput.value, 0) - 1);
-        });
-
-        haveIncrementButton.addEventListener("click", (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            applyMaterialHaveQuantity(normalizeMaterialProgressQuantity(haveInput.value, 0) + 1);
-        });
-
         materialRow.appendChild(nameSpan);
         materialRow.appendChild(haveWrapper);
 
@@ -2844,10 +2774,6 @@ function populateMaterialsList(materialsList = document.getElementById(pageCraft
             };
 
             materialRow.addEventListener("click", (event) => {
-                if (event.target === haveInput || event.target.closest(".materials-have-stepper")) {
-                    return;
-                }
-
                 openAskPicker(event);
             });
 
