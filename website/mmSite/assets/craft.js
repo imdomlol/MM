@@ -23,6 +23,8 @@ const toolbarSettingsMenuId = "toolbarSettingsMenu"
 const toolbarSettingsListId = "toolbarSettingsList"
 const selectedTreeCollapsedStorageKey = "mm_selected_tree_collapsed_v1"
 const materialsProgressStorageKey = "mm_materials_progress_v1"
+const skillsChecksStorageKey = "mm_skills_checks_v1"
+const toolsChecksStorageKey = "mm_tools_checks_v1"
 const borrowSettingsStorageKey = "mm_character_borrow_settings_v1"
 
 //STYLES
@@ -130,6 +132,8 @@ let gTrackedItems = {};
 let gSelectedItems = [];
 let gSelectedTreeCollapsedKeys = new Set();
 let gMaterialProgressByKey = {};
+let gSkillChecksByKey = {};
+let gToolChecksByKey = {};
 let gCharacterBorrowSettings = {};
 let fromScratch = false;
 let mainGrid = null;
@@ -321,6 +325,73 @@ function loadMaterialsProgress() {
 
 function saveMaterialsProgress() {
     localStorage.setItem(materialsProgressStorageKey, JSON.stringify(gMaterialProgressByKey));
+}
+
+function loadChecklistState(storageKey = "") {
+    try {
+        const parsed = JSON.parse(localStorage.getItem(storageKey) || "{}");
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+            return {};
+        }
+
+        const out = {};
+        for (const [key, value] of Object.entries(parsed)) {
+            if (!key) continue;
+            out[key] = Boolean(value);
+        }
+
+        return out;
+    } catch {
+        return {};
+    }
+}
+
+function saveChecklistState(storageKey = "", checklistState = {}) {
+    localStorage.setItem(storageKey, JSON.stringify(checklistState));
+}
+
+function loadSkillChecks() {
+    gSkillChecksByKey = loadChecklistState(skillsChecksStorageKey);
+}
+
+function saveSkillChecks() {
+    saveChecklistState(skillsChecksStorageKey, gSkillChecksByKey);
+}
+
+function loadToolChecks() {
+    gToolChecksByKey = loadChecklistState(toolsChecksStorageKey);
+}
+
+function saveToolChecks() {
+    saveChecklistState(toolsChecksStorageKey, gToolChecksByKey);
+}
+
+function normalizeChecklistKey(name = "") {
+    return String(name).trim().toLowerCase();
+}
+
+function isSkillChecked(skillName = "") {
+    const key = normalizeChecklistKey(skillName);
+    return !!gSkillChecksByKey[key];
+}
+
+function setSkillChecked(skillName = "", nextChecked = false) {
+    const key = normalizeChecklistKey(skillName);
+    if (!key) return;
+    gSkillChecksByKey[key] = Boolean(nextChecked);
+    saveSkillChecks();
+}
+
+function isToolChecked(toolName = "") {
+    const key = normalizeChecklistKey(toolName);
+    return !!gToolChecksByKey[key];
+}
+
+function setToolChecked(toolName = "", nextChecked = false) {
+    const key = normalizeChecklistKey(toolName);
+    if (!key) return;
+    gToolChecksByKey[key] = Boolean(nextChecked);
+    saveToolChecks();
 }
 
 function normalizeMaterialCheckKey(materialName = "") {
@@ -2000,14 +2071,55 @@ function populateSkillList(skillList = document.getElementById(pageCraftsSkillsL
     let skillsBreakdown = getSkillListFromSelectedItems(gSelectedItems);
     for (const skillName in skillsRequired){
         let skillLevel = skillsRequired[skillName].level
-        let skillColor = skillsRequired[skillName].mandatory ? "" : itemSkillMandatory;
-
         let textContent = `${skillName} ${skillLevel}`;
-        let textHref = `${recipePageBaseHref}${skillsRequired[skillName].recipeId}`;
-        const { li, a } = addEntryToList(skillList, textContent, textHref, skillColor);
+
+        const li = document.createElement("li");
+        const skillRow = document.createElement("div");
+        const nameSpan = document.createElement("span");
         const tooltipText = formatSkillBreakdownTooltip(skillName, skillsBreakdown[skillName]);
-        li.title = tooltipText;
-        a.title = tooltipText;
+
+        skillRow.classList.add("materials-check-item");
+        skillRow.title = tooltipText;
+        nameSpan.classList.add("materials-check-name");
+        nameSpan.textContent = textContent;
+
+        if (!skillsRequired[skillName].mandatory) {
+            nameSpan.style.color = itemSkillMandatory;
+        }
+
+        const checked = isSkillChecked(skillName);
+        if (checked) {
+            skillRow.classList.add("is-checked");
+        }
+
+        skillRow.setAttribute("role", "button");
+        skillRow.tabIndex = 0;
+        skillRow.setAttribute("aria-label", `Toggle completion for ${textContent}`);
+        skillRow.setAttribute("aria-pressed", checked ? "true" : "false");
+
+        const toggleSkillChecked = () => {
+            const nextChecked = !isSkillChecked(skillName);
+            setSkillChecked(skillName, nextChecked);
+            skillRow.classList.toggle("is-checked", nextChecked);
+            skillRow.setAttribute("aria-pressed", nextChecked ? "true" : "false");
+        };
+
+        skillRow.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            toggleSkillChecked();
+        });
+
+        skillRow.addEventListener("keydown", (event) => {
+            if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                toggleSkillChecked();
+            }
+        });
+
+        skillRow.appendChild(nameSpan);
+        li.appendChild(skillRow);
+        skillList.appendChild(li);
     }
 }
 
@@ -2017,12 +2129,49 @@ function populateToolsList(toolsList = document.getElementById(pageCraftsToolsLi
     let toolsNeeded = getToolsNeeded(gSelectedItems);
     let toolsBreakdown = getToolListFromSelectedItems(gSelectedItems);
     for (const toolName in toolsNeeded){
-        let textContent = toolName;
-        let textHref = `${recipePageBaseHref}${toolsNeeded[toolName].recipeId}`;
-        const { li, a } = addEntryToList(toolsList, textContent, textHref);
+        const li = document.createElement("li");
+        const toolRow = document.createElement("div");
+        const nameSpan = document.createElement("span");
         const tooltipText = formatToolBreakdownTooltip(toolName, toolsBreakdown[toolName]);
-        li.title = tooltipText;
-        a.title = tooltipText;
+
+        toolRow.classList.add("materials-check-item");
+        toolRow.title = tooltipText;
+        nameSpan.classList.add("materials-check-name");
+        nameSpan.textContent = toolName;
+
+        const checked = isToolChecked(toolName);
+        if (checked) {
+            toolRow.classList.add("is-checked");
+        }
+
+        toolRow.setAttribute("role", "button");
+        toolRow.tabIndex = 0;
+        toolRow.setAttribute("aria-label", `Toggle completion for ${toolName}`);
+        toolRow.setAttribute("aria-pressed", checked ? "true" : "false");
+
+        const toggleToolChecked = () => {
+            const nextChecked = !isToolChecked(toolName);
+            setToolChecked(toolName, nextChecked);
+            toolRow.classList.toggle("is-checked", nextChecked);
+            toolRow.setAttribute("aria-pressed", nextChecked ? "true" : "false");
+        };
+
+        toolRow.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            toggleToolChecked();
+        });
+
+        toolRow.addEventListener("keydown", (event) => {
+            if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                toggleToolChecked();
+            }
+        });
+
+        toolRow.appendChild(nameSpan);
+        li.appendChild(toolRow);
+        toolsList.appendChild(li);
     }
 }
 
@@ -2330,6 +2479,8 @@ export function initCraftPage() {
     gSelectedItems = getSelectedItems(gTrackedItems);
     loadSelectedTreeCollapsedKeys();
     loadMaterialsProgress();
+    loadSkillChecks();
+    loadToolChecks();
     loadCharacterBorrowSettings();
 
     //Base Grid Setup
