@@ -33,6 +33,15 @@ Myth & Magic Helper is a single-page web application designed to enhance the Myt
 
 Core data is stored in `website/mmSite/data/mm.db`.
 
+Pipeline code now lives in `data_pipeline/`:
+- `data_pipeline/selenium_utils.py` — shared Selenium login/navigation/fetch.
+- `data_pipeline/recipe_scrapers/game_recipes_scraper.py` — fetch, parse, validate, and persist recipes.
+- `data_pipeline/builders/items_builder.py` — build item index from recipes payload.
+- `data_pipeline/builders/player_inventories_builder.py` — sync inventories from Sheets.
+- `data_pipeline/cli_entrypoints/` — script entrypoints used by `build.py` and `server.py`.
+
+Compatibility wrappers remain at `website/mmSite/data/scripts/` so existing commands continue to work.
+
 From the repository root, build or refresh all core data tables:
 
 ```bash
@@ -62,6 +71,12 @@ API routes:
 - `GET /api/items`
 - `GET /api/player-inventories`
 - `POST /api/refresh-inventories`
+
+`POST /api/refresh-recipes` runs the recipe scraper and item builder pipeline.
+
+## Scrape Tool
+
+`Scrape/scrape.py` is a standalone graph/analysis helper. It now reuses shared Selenium fetch logic but does not directly orchestrate API refresh flow itself.
 
 The static site can still be served by nginx (recommended for this repo) or any HTTP server.
 

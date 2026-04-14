@@ -162,7 +162,7 @@ function populateDropdownFromList(list, elementId = "category", listProperty = "
 
 async function fetchJsonWithFallback(primaryPath, fallbackPath) {
     try {
-        const response = await fetch(primaryPath);
+        const response = await fetch(primaryPath, { cache: "no-store" });
         if (!response.ok) {
             throw new Error("HTTP " + response.status);
         }
@@ -172,12 +172,19 @@ async function fetchJsonWithFallback(primaryPath, fallbackPath) {
             throw primaryError;
         }
 
-        const fallbackResponse = await fetch(fallbackPath);
+        const fallbackResponse = await fetch(fallbackPath, { cache: "no-store" });
         if (!fallbackResponse.ok) {
             throw primaryError;
         }
         return await fallbackResponse.json();
     }
+}
+
+function categoryFromFolderPath(folderPath) {
+    const raw = String(folderPath || "");
+    if (!raw) return "";
+    const parts = raw.split("/").map(p => p.trim()).filter(Boolean);
+    return parts.length > 0 ? parts[0] : "";
 }
 
 // RECIPES.HTML PAGE FUNCTIONS (LIST PAGE)
@@ -491,6 +498,9 @@ function renderRecipeDetail(recipe) {
     const ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients : [];
     const results = Array.isArray(recipe.results) ? recipe.results : [];
     const relatedRecipes = Array.isArray(recipe.relatedRecipes) ? recipe.relatedRecipes : [];
+    const descriptionText = String(recipe.descriptionText || "").trim();
+    const isDescriptionOnlyMode = !recipe.isRecipe && relatedRecipes.length === 0;
+    const recipeStack = document.querySelector(".recipe-stack");
 
     function setCardVisibility(cardId, hasContent) {
         const el = document.getElementById(cardId);
@@ -505,6 +515,112 @@ function renderRecipeDetail(recipe) {
     function setTextById(elementId, text) {
         const el = document.getElementById(elementId);
         if (el) el.textContent = text;
+    }
+
+    function parseItemDescription(text) {
+        const description = String(text || "").trim();
+        if (!description) {
+            return { attributes: [], lore: "" };
+        }
+
+        const attributes = [];
+        const loreParts = [];
+        const pattern = /\[([^\]]*)\]/g;
+        let lastIndex = 0;
+        let match;
+
+        while ((match = pattern.exec(description))) {
+            if (match.index > lastIndex) {
+                loreParts.push(description.slice(lastIndex, match.index));
+            }
+
+            const attributeText = String(match[1] || "").trim();
+            if (attributeText) {
+                attributes.push(attributeText);
+            }
+
+            lastIndex = match.index + match[0].length;
+        }
+
+        if (lastIndex < description.length) {
+            loreParts.push(description.slice(lastIndex));
+        }
+
+        const lore = loreParts
+            .map(part => String(part || "").trim())
+            .filter(Boolean)
+            .join("\n\n");
+
+        return { attributes, lore };
+    }
+
+    function renderTextLines(elementId, lines, fallbackText = "") {
+        const el = document.getElementById(elementId);
+        if (!el) return false;
+
+        el.innerHTML = "";
+
+        const normalizedLines = (Array.isArray(lines) ? lines : [])
+            .map(line => String(line || "").trim())
+            .filter(Boolean);
+
+        if (normalizedLines.length === 0) {
+            if (fallbackText) {
+                el.textContent = fallbackText;
+            }
+            return false;
+        }
+
+        const fragment = document.createDocumentFragment();
+        normalizedLines.forEach((line, index) => {
+            const entry = document.createElement("div");
+            entry.classList.add("description-attribute-line");
+            entry.textContent = line;
+            fragment.appendChild(entry);
+
+            if (index < normalizedLines.length - 1) {
+                const spacer = document.createElement("div");
+                spacer.classList.add("description-attribute-spacer");
+                fragment.appendChild(spacer);
+            }
+        });
+
+        el.appendChild(fragment);
+        return true;
+    }
+
+    function renderDescriptionText(elementId, text, fallbackText = "No description available.") {
+        const el = document.getElementById(elementId);
+        if (!el) return false;
+
+        el.innerHTML = "";
+
+        const description = String(text || "").trim();
+        if (!description) {
+            el.textContent = fallbackText;
+            return false;
+        }
+
+        const fragment = document.createDocumentFragment();
+        const paragraphs = description
+            .split(/\n{2,}/g)
+            .map(part => String(part || "").trim())
+            .filter(Boolean);
+
+        if (paragraphs.length === 0) {
+            el.textContent = fallbackText;
+            return false;
+        }
+
+        for (const paragraph of paragraphs) {
+            const block = document.createElement("div");
+            block.classList.add("description-lore");
+            block.textContent = paragraph;
+            fragment.appendChild(block);
+        }
+
+        el.appendChild(fragment);
+        return true;
     }
 
     function equalizeMiddleCardSizes() {
@@ -602,24 +718,41 @@ function renderRecipeDetail(recipe) {
     setColumnVisibility(toolsColumn, tools.length > 0);
 
     const hasRequirements = Boolean(recipe.craftingTimeMinutes || tools.length || skills.length || recipe.requirementsText);
-    setCardVisibility("requirementsCard", hasRequirements);
+    setCardVisibility("requirementsCard", !isDescriptionOnlyMode && hasRequirements);
 
     //LINKS
     let recipeNameProperty = "name"
     let recipeIdProperty = "recipeId"
     let recipeIngredientsId = "ingredientsList"
     renderHyperlinkList(ingredients, document.getElementById(recipeIngredientsId), recipeNameProperty);
-    setCardVisibility("ingredientsCard", ingredients.length > 0);
+    setCardVisibility("ingredientsCard", !isDescriptionOnlyMode && ingredients.length > 0);
 
     let recipeResultsId = "resultsList"
     renderHyperlinkList(results, document.getElementById(recipeResultsId), recipeNameProperty);
-    setCardVisibility("resultsCard", results.length > 0);
+    setCardVisibility("resultsCard", !isDescriptionOnlyMode && results.length > 0);
 
-    setElementVisibility("ingredientsResultsArrow", ingredients.length > 0 && results.length > 0);
+    setElementVisibility("ingredientsResultsArrow", !isDescriptionOnlyMode && ingredients.length > 0 && results.length > 0);
+
+    const descriptionParts = parseItemDescription(descriptionText);
+    const hasAttributes = renderTextLines("itemAttributesText", descriptionParts.attributes);
+    const hasDescription = renderDescriptionText("itemDescriptionText", descriptionParts.lore);
+    setCardVisibility("itemAttributesBlock", hasAttributes);
+    setCardVisibility("itemDescriptionBlock", hasDescription);
+
+    const hasItemDetails = Boolean(descriptionText) || isDescriptionOnlyMode;
+    setCardVisibility("itemDetailsCard", hasItemDetails);
 
     let recipeRelatedRecipesId = "relatedRecipesList"
     renderHyperlinkList(relatedRecipes, document.getElementById(recipeRelatedRecipesId), recipeNameProperty, recipeIdProperty);
-    setCardVisibility("relatedRecipesCard", relatedRecipes.length > 0);
+    const hasRelatedRecipes = !isDescriptionOnlyMode && relatedRecipes.length > 0;
+    setCardVisibility("relatedRecipesCard", hasRelatedRecipes);
+
+    // Use split side layout only when both side panels exist and center content exists.
+    const hasCenterContent = !isDescriptionOnlyMode && (hasRequirements || ingredients.length > 0 || results.length > 0);
+    const useSplitSideLayout = Boolean(descriptionText) && hasRelatedRecipes && hasCenterContent;
+    if (recipeStack) {
+        recipeStack.classList.toggle("recipe-stack-split", useSplitSideLayout);
+    }
 
     requestAnimationFrame(equalizeMiddleCardSizes);
 }
@@ -713,19 +846,35 @@ function initRecipeDetailPage() {
     let itemInfo = foundItem
         ? gAllRecipes
             .filter(r => (foundItem.recipeIds || []).includes(r.recipeId))
-            .map(r => ({ ...r, isRecipe: true, relatedRecipes }))
+            .map(r => ({
+                ...r,
+                isRecipe: true,
+                relatedRecipes,
+                descriptionText: foundItem.descriptionText || "",
+            }))
         : [];
 
     if (foundItem && itemInfo.length === 0 && foundItem.itemId) {
         itemInfo = gAllRecipes
             .filter(r => r.itemId === foundItem.itemId)
-            .map(r => ({ ...r, isRecipe: true, relatedRecipes }));
+            .map(r => ({
+                ...r,
+                isRecipe: true,
+                relatedRecipes,
+                descriptionText: foundItem.descriptionText || "",
+            }));
     }
 
     if (itemInfo.length === 0) {
         const directRecipe = gAllRecipes.find(r => entityIdsEqual(r.recipeId, normalizedRecipeId));
         if (directRecipe) {
-            itemInfo = [{ ...directRecipe, isRecipe: true, relatedRecipes }];
+            const directItem = gAllItems.find(i => entityIdsEqual(i.itemId, directRecipe.itemId));
+            itemInfo = [{
+                ...directRecipe,
+                isRecipe: true,
+                relatedRecipes,
+                descriptionText: directItem?.descriptionText || "",
+            }];
         }
     }
 
@@ -733,12 +882,17 @@ function initRecipeDetailPage() {
     if (itemInfo.length === 0 && normalizedItemId) {
         itemInfo = gAllRecipes
             .filter(r => entityIdsEqual(r.itemId, normalizedItemId))
-            .map(r => ({ ...r, isRecipe: true, relatedRecipes }));
+            .map(r => ({
+                ...r,
+                isRecipe: true,
+                relatedRecipes,
+                descriptionText: foundItem?.descriptionText || "",
+            }));
     }
 
     if (itemInfo.length === 0 && (foundItem || normalizedItemId)) {
         const itemOnlyName = getItemDisplayNameFallback(foundItem, normalizedItemId);
-        const itemOnlyCategory = foundItem?.category || "Base Material";
+        const itemOnlyCategory = foundItem?.category || categoryFromFolderPath(foundItem?.folderPath) || "Base Material";
 
         itemInfo = [{
             name: itemOnlyName,
@@ -752,6 +906,7 @@ function initRecipeDetailPage() {
             ingredients: [],
             results: [],
             relatedRecipes,
+            descriptionText: foundItem?.descriptionText || "",
             isRecipe: false,
         }];
 
@@ -803,22 +958,13 @@ function getInventories() {
 }
 
 function addCategoryToItems(players) {
-    const allRecipes = gAllRecipes;
     const allItems = gAllItems;
 
     for (const player of players){
         for (const item of player.items){
             const itemData = allItems.find(i => i.itemId === item.itemId);
             if (itemData) {
-                let recipeData = allRecipes.find(r => (itemData.recipeIds || []).includes(r.recipeId));
-                if (!recipeData && itemData.itemId) {
-                    recipeData = allRecipes.find(r => r.itemId === itemData.itemId);
-                }
-                if (recipeData) {
-                    item.category = recipeData.category || "Uncategorized";
-                } else {
-                    item.category = "Base Material";
-                }
+                item.category = itemData.category || categoryFromFolderPath(itemData.folderPath) || "Base Material";
             } else {
                 item.category = "Unknown Item";
             }
@@ -828,8 +974,8 @@ function addCategoryToItems(players) {
 }
 
 function getAllInventoryCategories() {
-    const recipeCats = [...new Set(gAllRecipes.map(r => r.category).filter(Boolean))].sort();
-    return [...new Set([...recipeCats, "Base Material", "Unknown Item"])];
+    const itemCats = [...new Set((gAllItems || []).map(i => i?.category).filter(Boolean))].sort();
+    return [...new Set([...itemCats, "Base Material", "Unknown Item"])];
 }
 
 function getSelectedPlayerName() {
@@ -1013,6 +1159,11 @@ async function refreshInventories() {
             INVENTORIES_FILEPATH + "?t=" + Date.now(),
             INVENTORIES_FALLBACK_FILEPATH + "?t=" + Date.now(),
         );
+        const itemsData = await fetchJsonWithFallback(
+            ITEMS_FILEPATH + "?t=" + Date.now(),
+            ITEMS_FALLBACK_FILEPATH + "?t=" + Date.now(),
+        );
+        gAllItems = itemsData.items || [];
         gAllPlayers = data.players || [];
         addCategoryToItems(gAllPlayers);
 
@@ -1099,16 +1250,17 @@ function initInventoriesListPage() {
 // INITIALIZATION
 document.addEventListener("DOMContentLoaded", () => {
     loadInventoryLastSyncedByPlayer();
+    const startupTs = Date.now();
 
     Promise.all([
-        fetchJsonWithFallback(RECIPES_FILEPATH, RECIPES_FALLBACK_FILEPATH).then(data => {
+        fetchJsonWithFallback(RECIPES_FILEPATH + "?t=" + startupTs, RECIPES_FALLBACK_FILEPATH + "?t=" + startupTs).then(data => {
             gAllRecipes = extractRecipes(data);
             gRecipesLastUpdated = data.last_updated || "";
         }),
-        fetchJsonWithFallback(ITEMS_FILEPATH, ITEMS_FALLBACK_FILEPATH).then(data => {
+        fetchJsonWithFallback(ITEMS_FILEPATH + "?t=" + startupTs, ITEMS_FALLBACK_FILEPATH + "?t=" + startupTs).then(data => {
             gAllItems = data.items || [];
         }),
-        fetchJsonWithFallback(INVENTORIES_FILEPATH, INVENTORIES_FALLBACK_FILEPATH).then(data => {
+        fetchJsonWithFallback(INVENTORIES_FILEPATH + "?t=" + startupTs, INVENTORIES_FALLBACK_FILEPATH + "?t=" + startupTs).then(data => {
             gAllPlayers = data.players || [];
             gInventoriesLastUpdated = data.last_updated || "";
             seedInventoryLastSyncedForPlayers(gAllPlayers, gInventoriesLastUpdated);

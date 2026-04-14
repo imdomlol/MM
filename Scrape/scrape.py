@@ -9,17 +9,19 @@ from pathlib import Path
 import webbrowser
 import json
 import math
+import sys
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from data_pipeline.selenium_utils import fetch_recipe_page_with_selenium as fetch_recipe_page_with_selenium_shared
 
 background_color = "#212121"
 fonts_color = "#FBF5E5"
 main_node_color = "#A35C7A"
 node_color = "#C890A7"
 edge_color = "#C890A7"
-
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import Select, WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 
 def get_html_content(local_path, url, login_url, username):
   """
@@ -599,80 +601,7 @@ window.addEventListener("load", function () {
     print(f"Graph saved as {output_html}.")
 
 def fetch_recipe_page_with_selenium(recipe_page_url):
-  options = webdriver.ChromeOptions()
-  # Uncomment the next line to run in headless mode if desired:
-  # options.add_argument("--headless")
-  driver = webdriver.Chrome(options=options)
-  driver.get(recipe_page_url)
-  
-  # --- LOGIN STEP -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  # Wait until the login form is present.
-  WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, "join-game-form")))
-  
-  # Locate the user dropdown and re-enable the "Caine" option.
-  select_element = driver.find_element(By.NAME, "userid")
-  caine_option = select_element.find_element(By.XPATH, ".//option[text()='Caine']")
-  driver.execute_script("arguments[0].disabled = false;", caine_option)
-  
-  # Select "Caine" from the dropdown.
-  select = Select(select_element)
-  select.select_by_visible_text("Caine")
-  
-  # Click the "Join Game Session" button.
-  join_button = driver.find_element(By.XPATH, "//button[@name='join']")
-  join_button.click()
-  
-  # Wait until the game interface loads (e.g., the URL contains "game").
-  WebDriverWait(driver, 10).until(lambda d: "game" in d.current_url)
-  
-  # --- ACTIVATE THE "ITEMS" TAB -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  try:
-      # Wait for the body to have the expected classes.
-      WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.XPATH,"//body[contains(@class, 'vtt') and contains(@class, 'game') and contains(@class, 'system-worldbuilding') and contains(@class, 'theme-dark')]")))
-      print("Game interface loaded.")
-      
-      # Locate the section with id="ui-right" inside the interface.
-      ui_right_section = WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.XPATH,"//div[@id='interface']//section[@id='ui-right']")))
-      print("UI-right section loaded.")
-      
-      # Within ui-right, locate the sidebar with id="sidebar" and class "app".
-      sidebar_app = WebDriverWait(ui_right_section, 15).until(EC.presence_of_element_located((By.XPATH,".//div[@id='sidebar' and contains(@class, 'app')]")))
-      print("Sidebar (app) loaded.")
-      
-      # Within the sidebar, locate the "Items" tab (<a> element with data-tab="items").
-      items_tab = WebDriverWait(sidebar_app, 15).until(EC.element_to_be_clickable((By.XPATH, "//nav[@id='sidebar-tabs']//a[@data-tab='items']")))
-      try:
-          items_tab.click()
-      except Exception:
-          driver.execute_script("arguments[0].click();", items_tab)
-          print("Items tab activated via JavaScript.")
-  except Exception as e:
-      print("Failed to activate the Items tab:", e)
-  
-  # --- CLICK THE RECIPE MANAGER BUTTON ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  try:
-      # Wait for the Recipe Manager button (identified by its CSS class) to become clickable.
-      recipe_manager_button = WebDriverWait(driver, 15).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button.mastercrafted-open-recipe-app")))
-      try:
-          recipe_manager_button.click()
-      except Exception:
-          driver.execute_script("arguments[0].click();", recipe_manager_button)
-          print("Recipe manager button clicked via JavaScript.")
-  except Exception as e:
-      print("Recipe manager button not found or not clickable:", e)
-  
-  # --- WAIT FOR THE RECIPE MANAGER CONTENT TO LOAD ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  try:
-        # Wait for an element that indicates the recipe manager has loaded.
-        WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.ID, "mastercrafted-recipeApp")))
-        print("Recipe manager content loaded.")
-  except Exception as e:
-        print("Could not locate the recipe manager content element:", e)
-  
-  # --- FINISH ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  html = driver.page_source
-  driver.quit()
-  return html
+  return fetch_recipe_page_with_selenium_shared(recipe_page_url, logger=print)
 
 if __name__ == "__main__":
     import tkinter as tk

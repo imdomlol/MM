@@ -80,6 +80,14 @@ def init_schema(conn: sqlite3.Connection) -> None:
             PRIMARY KEY (item_id, recipe_id, is_primary)
         );
 
+        CREATE TABLE IF NOT EXISTS item_catalog (
+            item_id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            folder_path TEXT DEFAULT '',
+            description_text TEXT DEFAULT '',
+            image_path TEXT DEFAULT ''
+        );
+
         CREATE TABLE IF NOT EXISTS players (
             sheet_id TEXT PRIMARY KEY,
             name TEXT NOT NULL
@@ -99,6 +107,35 @@ def init_schema(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_inventory_sheet ON player_inventory_items(sheet_id);
         """
     )
+
+    existing_columns = {
+        row["name"]
+        for row in conn.execute("PRAGMA table_info(items)").fetchall()
+    }
+    if "folder_path" not in existing_columns:
+        conn.execute("ALTER TABLE items ADD COLUMN folder_path TEXT DEFAULT ''")
+    if "description_text" not in existing_columns:
+        conn.execute("ALTER TABLE items ADD COLUMN description_text TEXT DEFAULT ''")
+    if "image_path" not in existing_columns:
+        conn.execute("ALTER TABLE items ADD COLUMN image_path TEXT DEFAULT ''")
+    if "category" not in existing_columns:
+        conn.execute("ALTER TABLE items ADD COLUMN category TEXT DEFAULT ''")
+
+    # attributes_text is deprecated and should be removed where SQLite supports DROP COLUMN.
+    item_catalog_columns = {
+        row["name"]
+        for row in conn.execute("PRAGMA table_info(item_catalog)").fetchall()
+    }
+    if "attributes_text" in existing_columns:
+        try:
+            conn.execute("ALTER TABLE items DROP COLUMN attributes_text")
+        except sqlite3.OperationalError:
+            pass
+    if "attributes_text" in item_catalog_columns:
+        try:
+            conn.execute("ALTER TABLE item_catalog DROP COLUMN attributes_text")
+        except sqlite3.OperationalError:
+            pass
 
 
 def set_meta(conn: sqlite3.Connection, key: str, value: str) -> None:
@@ -210,8 +247,18 @@ def replace_items_payload(conn: sqlite3.Connection, payload: dict[str, Any], sou
         if not item_id:
             continue
         conn.execute(
-            "INSERT INTO items(item_id, name) VALUES(?, ?)",
-            (item_id, item.get("name") or ""),
+            """
+            INSERT INTO items(item_id, name, folder_path, description_text, image_path, category)
+            VALUES(?, ?, ?, ?, ?, ?)
+            """,
+            (
+                item_id,
+                item.get("name") or "",
+                item.get("folderPath") or "",
+                item.get("descriptionText") or "",
+                item.get("imagePath") or "",
+                item.get("category") or "",
+            ),
         )
 
         for recipe_id in item.get("recipeIds") or []:
@@ -230,6 +277,58 @@ def replace_items_payload(conn: sqlite3.Connection, payload: dict[str, Any], sou
 
     if source_hash:
         set_meta(conn, "items_source_hash", source_hash)
+
+
+def replace_item_catalog_payload(conn: sqlite3.Connection, payload: dict[str, Any], source_hash: str | None = None) -> None:
+    init_schema(conn)
+    conn.execute("DELETE FROM item_catalog")
+
+    for item in payload.get("items", []):
+        item_id = item.get("itemId")
+        if not item_id:
+            continue
+
+        conn.execute(
+            """
+            INSERT INTO item_catalog(item_id, name, folder_path, description_text, image_path)
+            VALUES(?, ?, ?, ?, ?)
+            """,
+            (
+                item_id,
+                item.get("name") or "",
+                item.get("folderPath") or "",
+                item.get("descriptionText") or "",
+                item.get("imagePath") or "",
+            ),
+        )
+
+    if source_hash:
+        set_meta(conn, "item_catalog_source_hash", source_hash)
+
+
+def read_item_catalog_payload(conn: sqlite3.Connection) -> dict[str, Any]:
+    init_schema(conn)
+    rows = conn.execute(
+        """
+        SELECT item_id, name, folder_path, description_text, image_path
+        FROM item_catalog
+        ORDER BY name
+        """
+    ).fetchall()
+
+    items = []
+    for row in rows:
+        items.append(
+            {
+                "itemId": row["item_id"],
+                "name": row["name"],
+                "folderPath": row["folder_path"] or "",
+                "descriptionText": row["description_text"] or "",
+                "imagePath": row["image_path"] or "",
+            }
+        )
+
+    return {"items": items}
 
 
 def replace_player_inventories_payload(conn: sqlite3.Connection, payload: dict[str, Any], fetched_at: str | None = None) -> None:
@@ -342,7 +441,13 @@ def read_recipes_payload(conn: sqlite3.Connection) -> dict[str, Any]:
 
 def read_items_payload(conn: sqlite3.Connection) -> dict[str, Any]:
     init_schema(conn)
-    rows = conn.execute("SELECT item_id, name FROM items ORDER BY name").fetchall()
+    rows = conn.execute(
+        """
+        SELECT item_id, name, folder_path, description_text, image_path, category
+        FROM items
+        ORDER BY name
+        """
+    ).fetchall()
     link_rows = conn.execute(
         "SELECT item_id, recipe_id, is_primary FROM item_recipe_links ORDER BY item_id, recipe_id"
     ).fetchall()
@@ -363,6 +468,10 @@ def read_items_payload(conn: sqlite3.Connection) -> dict[str, Any]:
             {
                 "name": row["name"],
                 "itemId": item_id,
+                "folderPath": row["folder_path"] or "",
+                "descriptionText": row["description_text"] or "",
+                "imagePath": row["image_path"] or "",
+                "category": row["category"] or "",
                 "recipeIds": item_links["primary"],
                 "relatedRecipeIds": item_links["related"],
             }
