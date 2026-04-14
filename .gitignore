@@ -8,14 +8,15 @@ Misc/mythmagic-crafter-*.json
 .venv
 .venv.*
 
-# recipe data files
-Scrape/reciperawAUTO.html
-Scrape/reciperaw.html
-
 # generated site data (rebuilt by scripts)
 website/mmSite/data/items.json
 website/mmSite/data/recipes.json
 website/mmSite/data/playerInventories.json
+website/mmSite/data/mm.db
+
+# Python cache
+__pycache__/
+*.pyc
 
 # build cache (local only, not needed in repo)
 .build_cache/

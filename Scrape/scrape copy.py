@@ -676,7 +676,9 @@ def fetch_recipe_page_with_selenium(recipe_page_url):
 
 if __name__ == "__main__":
     script_dir = Path(__file__).resolve().parent
-    local_file_path = script_dir / "reciperaw.html"
+    cache_dir = script_dir.parent / ".build_cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    local_file_path = cache_dir / "recipes_source.html"
     recipe_page_url = "http://173.16.234.161:30000/game"
     
     update = 'FALSE'

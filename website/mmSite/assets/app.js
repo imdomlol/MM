@@ -14,9 +14,9 @@ let gEqualizeCardSizesFunction = null;
 let gCurrentRecipeDetailSelection = null;
 let gActiveCategories = new Set(); // empty + !gAllCategoriesOff means all enabled categories visible
 let gAllCategoriesOff = false;
-const RECIPES_FILEPATH = "./data/recipes.json"
-const ITEMS_FILEPATH = "./data/items.json"
-const INVENTORIES_FILEPATH = "./data/playerInventories.json"
+const RECIPES_FILEPATH = "/api/recipes"
+const ITEMS_FILEPATH = "/api/items"
+const INVENTORIES_FILEPATH = "/api/player-inventories"
 const USER_MARKS_STORAGE_KEY = "mm_user_marks_v1"
 
 function createDebouncedResizeHandler() {

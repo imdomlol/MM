@@ -20,16 +20,42 @@ import subprocess
 import sys
 from pathlib import Path
 
+from mmdb import get_connection, read_items_payload, read_player_inventories_payload, read_recipes_payload
+
 REPO_ROOT = Path(__file__).resolve().parent
+DB_PATH = REPO_ROOT / "website" / "mmSite" / "data" / "mm.db"
 
 app = Flask(__name__)
+
+
+def _read_payload(reader):
+    conn = get_connection(DB_PATH)
+    try:
+        return reader(conn)
+    finally:
+        conn.close()
+
+
+@app.route("/api/recipes", methods=["GET"])
+def get_recipes():
+    return jsonify(_read_payload(read_recipes_payload))
+
+
+@app.route("/api/items", methods=["GET"])
+def get_items():
+    return jsonify(_read_payload(read_items_payload))
+
+
+@app.route("/api/player-inventories", methods=["GET"])
+def get_player_inventories():
+    return jsonify(_read_payload(read_player_inventories_payload))
 
 
 @app.route("/api/refresh-inventories", methods=["POST"])
 def refresh_inventories():
     script = REPO_ROOT / "website" / "mmSite" / "data" / "scripts" / "buildPlayerInventoriesJSON.py"
     result = subprocess.run(
-        [sys.executable, str(script), "--force"],
+        [sys.executable, str(script), "--force", "--db", str(DB_PATH)],
         capture_output=True,
         text=True,
         cwd=str(REPO_ROOT),

@@ -3,6 +3,8 @@ cd /d "%~dp0"
 
 :: ── Configure this ──────────────────────────────────────────────
 set NGINX_DIR=C:\nginx
+set PYTHONW_CMD=pythonw
+if exist "%~dp0.venv\Scripts\pythonw.exe" set PYTHONW_CMD=%~dp0.venv\Scripts\pythonw.exe
 :: ────────────────────────────────────────────────────────────────
 
 :: Reload nginx if already running, otherwise start it
@@ -23,6 +25,6 @@ if errorlevel 1 (
     echo Restarting MM API server...
     taskkill /f /im pythonw.exe >NUL
 )
-start "" /D "%~dp0" pythonw server.py
+start "" /D "%~dp0" "%PYTHONW_CMD%" server.py
 
 echo Done.

@@ -223,7 +223,7 @@ def show_graph_in_pyvis(G, query, query_title):
     print(f"Graph saved as {output_html}")
 
 if __name__ == "__main__":
-    with open(Path(__file__).resolve().parent / "reciperaw.html", "r", encoding="utf-8") as f:
+    with open(Path(__file__).resolve().parents[1] / ".build_cache" / "recipes_source.html", "r", encoding="utf-8") as f:
         html_content = f.read()
 
     parsed_recipes = parse_mastercrafted_recipes(html_content)

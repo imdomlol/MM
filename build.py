@@ -2,18 +2,17 @@
 build.py — MM data pipeline runner
 
 Runs the full pipeline in order:
-  1. Fetch recipe HTML via Selenium (optional, skip with --skip-scrape)
-  2. buildRecipesJSON  — parse reciperaw.html → recipes.json
-  3. buildItemsJSON    — derive items.json from recipes.json
-  4. buildPlayerInventoriesJSON — sync inventories from Google Sheets
+    1. buildRecipesJSON  — fetch+parse recipe HTML into SQLite recipes tables
+    2. buildItemsJSON    — derive SQLite item index from recipes tables
+    3. buildPlayerInventoriesJSON — sync inventories from Google Sheets into SQLite
 
 All steps respect their individual caches unless --force is passed.
 
 Usage examples:
-  python build.py                         # full pipeline (Selenium + all builds)
-  python build.py --skip-scrape           # skip Selenium, rebuild from existing HTML
-  python build.py --skip-scrape --force   # force-rebuild all JSON, ignore caches
-  python build.py --max-age 0             # always refetch inventories from Sheets
+    python build.py                         # full pipeline (fetch + all DB builds)
+    python build.py --skip-fetch            # skip live fetch, use cached HTML
+    python build.py --skip-fetch --force    # force-rebuild all DB tables, ignore caches
+    python build.py --max-age 0             # always refetch inventories from Sheets
 """
 
 import argparse
@@ -23,7 +22,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent
 SCRIPTS_DIR = REPO_ROOT / "website" / "mmSite" / "data" / "scripts"
-SCRAPE_SCRIPT = REPO_ROOT / "Scrape" / "scrape.py"
+DB_PATH = REPO_ROOT / "website" / "mmSite" / "data" / "mm.db"
 
 
 def run_step(label: str, cmd: list[str]) -> bool:
@@ -39,8 +38,8 @@ def run_step(label: str, cmd: list[str]) -> bool:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="MM data pipeline runner")
-    ap.add_argument("--skip-scrape", action="store_true",
-                    help="Skip Selenium fetch; use existing reciperaw.html")
+    ap.add_argument("--skip-fetch", "--skip-scrape", dest="skip_fetch", action="store_true",
+                    help="Skip live recipe fetch; use cached recipe HTML")
     ap.add_argument("--force", "-f", action="store_true",
                     help="Ignore all caches and rebuild everything")
     ap.add_argument("--max-age", type=int, default=10, metavar="MINUTES",
@@ -49,24 +48,23 @@ def main() -> int:
 
     force_flag = ["--force"] if args.force else []
 
-    steps: list[tuple[str, list[str]]] = []
+    recipe_step_cmd = [sys.executable, str(SCRIPTS_DIR / "buildRecipesJSON.py"), "--db", str(DB_PATH)] + force_flag
+    if args.skip_fetch:
+        recipe_step_cmd.append("--no-fetch")
 
-    if not args.skip_scrape:
-        steps.append(("Scrape: fetch recipe HTML", [sys.executable, str(SCRAPE_SCRIPT)]))
-
-    steps += [
+    steps: list[tuple[str, list[str]]] = [
         (
-            "Build: recipes.json",
-            [sys.executable, str(SCRIPTS_DIR / "buildRecipesJSON.py")] + force_flag,
+            "Build: recipes tables",
+            recipe_step_cmd,
         ),
         (
-            "Build: items.json",
-            [sys.executable, str(SCRIPTS_DIR / "buildItemsJSON.py")] + force_flag,
+            "Build: items tables",
+            [sys.executable, str(SCRIPTS_DIR / "buildItemsJSON.py"), "--db", str(DB_PATH)] + force_flag,
         ),
         (
-            "Build: playerInventories.json",
+            "Build: player inventories tables",
             [sys.executable, str(SCRIPTS_DIR / "buildPlayerInventoriesJSON.py"),
-             "--max-age", str(args.max_age)] + force_flag,
+             "--max-age", str(args.max_age), "--db", str(DB_PATH)] + force_flag,
         ),
     ]
 

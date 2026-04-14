@@ -4,7 +4,7 @@ A web-based companion tool for Myth & Magic that provides comprehensive recipe b
 
 ## Overview
 
-Myth & Magic Helper is a single-page web application designed to enhance the Myth & Magic gaming experience. It serves as a central hub for players to explore crafting recipes, trace item relationships, and track player inventories. The tool uses a static website architecture backed by structured JSON data, enabling fast lookups and intuitive navigation across game content.
+Myth & Magic Helper is a single-page web application designed to enhance the Myth & Magic gaming experience. It serves as a central hub for players to explore crafting recipes, trace item relationships, and track player inventories. The tool now uses a static website frontend backed by a local SQLite database and Flask API, enabling fast lookups and intuitive navigation across game content.
 
 ## What It Does
 
@@ -29,9 +29,41 @@ Myth & Magic Helper is a single-page web application designed to enhance the Myt
 - Right-click context menus for quick recipe lookups
 - Theme support for comfortable browsing
 
+## Data Pipeline
+
+Core data is stored in `website/mmSite/data/mm.db`.
+
+From the repository root, build or refresh all core data tables:
+
+```bash
+python build.py
+```
+
+If you need to avoid live recipe fetch for a run, use:
+
+```bash
+python build.py --skip-fetch
+```
+
+Note: `--skip-fetch` requires either a previously cached source at `.build_cache/recipes_source.html` or a direct `--input` path passed to `buildRecipesJSON.py`.
+
 ## Testing & Local Hosting
 
-The application is a static website and can be tested locally with any HTTP server.
+The frontend now fetches data from `/api/*`, so run the Flask API server while hosting static files.
+
+From the repository root:
+
+```bash
+python server.py
+```
+
+API routes:
+- `GET /api/recipes`
+- `GET /api/items`
+- `GET /api/player-inventories`
+- `POST /api/refresh-inventories`
+
+The static site can still be served by nginx (recommended for this repo) or any HTTP server.
 
 ### Using Python
 

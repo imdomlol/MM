@@ -6,7 +6,7 @@ function initThemes() {
   const themeSelect = document.getElementById("themeSelect");
   const playerSelect = document.getElementById("playersInventoryDropdown");
   const SECRET_PREFIX = "secret:";
-  const playerDataPath = "./data/playerInventories.json";
+  const playerDataPath = "/api/player-inventories";
 
   function getSecretOwner(themeValue) {
     return themeValue.startsWith(SECRET_PREFIX) ? themeValue.slice(SECRET_PREFIX.length) : "";
