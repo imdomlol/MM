@@ -11,3 +11,8 @@ Misc/mythmagic-crafter-*.json
 # recipe data files
 Scrape/reciperawAUTO.html
 Scrape/reciperaw.html
+
+# generated site data (rebuilt by scripts)
+website/mmSite/data/items.json
+website/mmSite/data/recipes.json
+website/mmSite/data/playerInventories.json
