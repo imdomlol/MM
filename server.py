@@ -1,32 +1,28 @@
 """
-server.py — Local dev server for MM
+server.py — API server for MM
 
-Serves the static site and exposes a single API endpoint so the browser
-can trigger the Google Sheets inventory sync without leaving the page.
+Exposes the Google Sheets inventory sync as an HTTP endpoint so the
+browser Refresh button can trigger it. Static files are served by nginx.
+
+nginx config (add inside your existing server block):
+    location /api/ {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
 
 Usage:
     python server.py
-    # Site available at http://localhost:5000
 """
 
-from flask import Flask, jsonify, send_from_directory
+from flask import Flask, jsonify
 import subprocess
 import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent
-SITE_DIR = REPO_ROOT / "website" / "mmSite"
 
-app = Flask(__name__, static_folder=str(SITE_DIR), static_url_path="")
-
-
-@app.route("/", defaults={"path": ""})
-@app.route("/<path:path>")
-def serve_static(path):
-    target = SITE_DIR / path
-    if path and target.exists():
-        return send_from_directory(str(SITE_DIR), path)
-    return send_from_directory(str(SITE_DIR), "index.html")
+app = Flask(__name__)
 
 
 @app.route("/api/refresh-inventories", methods=["POST"])
@@ -44,6 +40,6 @@ def refresh_inventories():
 
 
 if __name__ == "__main__":
-    print(f"Serving site from: {SITE_DIR}")
-    print("Open http://localhost:5000")
-    app.run(port=5000, debug=False)
+    print("API server running on http://127.0.0.1:5000")
+    print("Proxy /api/ to this from nginx — do not expose port 5000 directly.")
+    app.run(host="127.0.0.1", port=5000, debug=False)

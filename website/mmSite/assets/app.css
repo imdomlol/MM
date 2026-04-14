@@ -523,10 +523,40 @@ input, select, button { font: inherit; }
   gap: 10px;
 }
 
+.topbar-field {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.topbar-player-field {
+  min-width: 250px;
+}
+
+.topbar-theme-field {
+  min-width: 160px;
+}
+
 .theme-label {
   color: var(--muted);
   font-size: 12px;
   font-weight: 700;
+  white-space: nowrap;
+}
+
+.topbar-field .theme-select {
+  width: 100%;
+}
+
+.topbar-player-field .theme-select {
+  min-width: 0;
+}
+
+.topbar-theme-field .theme-select {
+  width: auto;
+  min-width: 110px;
 }
 
 .theme-select {
@@ -581,6 +611,10 @@ input, select, button { font: inherit; }
 
   .topbar-actions {
     margin-left: auto;
+  }
+
+  .topbar-player-field {
+    min-width: 210px;
   }
 }
 
@@ -835,8 +869,28 @@ input, select, button { font: inherit; }
   min-width: 180px;
 }
 
+.inv-toolbar .inv-action-field {
+  min-width: 180px;
+}
+
+.inv-toolbar-meta {
+  width: fit-content;
+  max-width: min(100%, var(--panel-max));
+  margin: 0 auto 8px;
+  padding: 0 12px;
+  text-align: right;
+}
+
 @media (max-width: 640px) {
   .field { min-width: 100%; }
+
+  .topbar-player-field {
+    min-width: 180px;
+  }
+
+  .inv-toolbar-meta {
+    text-align: left;
+  }
 
   .recipe-toolbar .recipe-index-field {
     min-width: 0;
@@ -1802,5 +1856,111 @@ a[data-usercategory]::after{
   object-fit: cover;
   pointer-events: none;
   opacity: 0.5
+}
+
+/* ==========================================================================
+   9) INVENTORIES PAGE — CATEGORY PILLS & MULTI-COLUMN GRID
+   ========================================================================== */
+
+/* Collapsible category filter panel */
+.inv-category-panel {
+  width: min(100%, var(--content-max));
+  max-width: min(100%, var(--content-max));
+  margin-inline: auto;
+  margin-top: 8px;
+  margin-bottom: 10px;
+  padding: 10px 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+/* Pill container */
+.inv-pills {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  align-items: stretch;
+}
+
+@media (max-width: 1200px) {
+  .inv-pills { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+@media (max-width: 900px) {
+  .inv-pills { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  .inv-pills { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 460px) {
+  .inv-pills { grid-template-columns: 1fr; }
+}
+
+/* Pills reuse .btn but are dimmed when inactive */
+.inv-pill {
+  width: 100%;
+  min-width: 0;
+  font-size: 13px;
+  height: 2em;
+  padding: 0 12px;
+  opacity: 0.4;
+  transition: opacity 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.inv-pill.is-active {
+  opacity: 1;
+  background: linear-gradient(180deg, rgba(89, 222, 164, 0.28), rgba(89, 222, 164, 0.14));
+  border-color: rgba(89, 222, 164, 0.46);
+}
+
+.inv-pill.is-active:hover {
+  background: linear-gradient(180deg, rgba(89, 222, 164, 0.36), rgba(89, 222, 164, 0.22));
+}
+
+:root[data-theme="light"] .inv-pill.is-active {
+  background: linear-gradient(180deg, rgba(40, 180, 120, 0.20), rgba(40, 180, 120, 0.10));
+  border-color: rgba(40, 180, 120, 0.45);
+}
+
+.inv-pill:disabled,
+.inv-pill.is-disabled {
+  opacity: 0.22;
+  cursor: not-allowed;
+  pointer-events: none;
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.08);
+}
+
+:root[data-theme="light"] .inv-pill:disabled,
+:root[data-theme="light"] .inv-pill.is-disabled {
+  background: rgba(15,23,42,0.06);
+  border-color: rgba(15,23,42,0.10);
+}
+
+/* Multi-column item grid */
+.inv-item-grid {
+  columns: 2;
+  column-gap: 12px;
+}
+
+.inv-item-grid li {
+  break-inside: avoid;
+}
+
+@media (min-width: 900px) {
+  .inv-item-grid { columns: 3; }
+}
+
+@media (max-width: 520px) {
+  .inv-item-grid { columns: 1; }
+}
+
+/* Widen the item card beyond --panel-max to fit multi-column layout.
+   Specificity matches .page > .card to ensure the override takes effect. */
+.page > .inv-item-card {
+  max-width: min(100%, var(--content-max));
 }
 

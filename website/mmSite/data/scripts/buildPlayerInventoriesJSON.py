@@ -95,18 +95,50 @@ def main():
 
         # Fetch data
         data = worksheet.get(invRange)
+        expected_width = endCol - startCol + 1
+
+        # gspread can trim trailing empty cells, which hides later 5-column
+        # inventory groups on sparse rows. Pad rows to the requested width so
+        # every group can be evaluated consistently.
+        for row in data:
+            if len(row) < expected_width:
+                row.extend([""] * (expected_width - len(row)))
 
         playerName = worksheet.get("B3")
 
-        # Process data: iterate fixed-width pairs based on column position.
-        # Preserving column positions (rather than stripping empties) means a
-        # stray cell can corrupt at most the one pair it sits in, not everything
-        # to its right.
-        items = []
+        # Detect whether inventory groups repeat every 5 or 6 columns. Some sheets
+        # include a separator column between groups, which shifts the stride to 6.
+        def parseable_pairs_count(stride: int) -> int:
+            count = 0
+            for row in data:
+                for i in range(0, expected_width - 2, stride):
+                    qty_cell = (row[i] or "").strip()
+                    name_cell = (row[i + 2] or "").strip()
+                    if not qty_cell or not name_cell:
+                        continue
+                    if name_cell in ITEM_HEADERS or qty_cell in ITEM_HEADERS:
+                        continue
+                    try:
+                        int(qty_cell)
+                    except ValueError:
+                        continue
+                    try:
+                        int(name_cell)
+                        continue
+                    except ValueError:
+                        pass
+                    count += 1
+            return count
+
+        group_stride = 6 if parseable_pairs_count(6) >= parseable_pairs_count(5) else 5
+
+        # Process data: each inventory entry stores qty at offset 0 and name at
+        # offset 2 inside each repeating column group.
+        items_map = {}  # name -> qty, used to merge duplicate entries
         for row in data:
-            for i in range(0, len(row) - 1, 2):
+            for i in range(0, expected_width - 2, group_stride):
                 qty_cell = (row[i] or "").strip()
-                name_cell = (row[i + 1] or "").strip()
+                name_cell = (row[i + 2] or "").strip()
 
                 # Skip empty pairs
                 if not qty_cell or not name_cell:
@@ -130,8 +162,10 @@ def main():
                 except ValueError:
                     pass
 
-                items.append({"name": name_cell, "qty": qty, "itemId": None})
-        
+                items_map[name_cell] = items_map.get(name_cell, 0) + qty
+
+        items = [{"name": name, "qty": qty, "itemId": None} for name, qty in items_map.items()]
+
         players.append({"sheetId": sheetId, "name": playerName[0][0] if playerName else "Unknown", "items": items})
     
     # Add itemIds from items.json

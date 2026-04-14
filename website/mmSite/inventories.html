@@ -14,29 +14,27 @@
             <h1>Inventories</h1>
             <div id="inventories"></div>
 
-            <div class="toolbar">
-                <div class="field">
-                    <label>Player</label>
-                    <select id="playersInventoryDropdown"></select>
-                </div>
-                <div class="field">
-                    <label>Category</label>
-                    <select id="playersInventoryCategoryDropdown">
-                        <option value="All Categories">All Categories</option>
-                        <option value="Base Material">Base Material</option>
-                        <option value="Unknown Item">Unknown Item</option>
-                    </select>
-                </div>
-                <div class="field">
+            <div class="toolbar inv-toolbar">
+                <div class="field inv-action-field">
                     <button id="refreshInventoryBtn" class="btn" type="button" title="Refresh inventory from latest data">
                         <span class="refresh-icon">↻</span> Refresh
                     </button>
-                    <span id="inventoryLastSynced" class="last-synced"></span>
+                </div>
+                <div class="field inv-action-field">
+                    <button id="inv-filter-toggle" class="btn" type="button">⊞ Filters</button>
                 </div>
             </div>
 
-            <div class="card">
-                <ul class="list" id="playerInventoryList"></ul>
+            <div class="inv-toolbar-meta">
+                <span id="inventoryLastSynced" class="last-synced"></span>
+            </div>
+
+            <div id="inv-category-panel" class="inv-category-panel" hidden>
+                <div id="inv-category-pills" class="inv-pills"></div>
+            </div>
+
+            <div class="card inv-item-card">
+                <ul class="list inv-item-grid" id="playerInventoryList"></ul>
             </div>
         </main>
 

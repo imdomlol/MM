@@ -12,6 +12,8 @@ export let gAllItems = [];
 export let gAllPlayers = [];
 let gEqualizeCardSizesFunction = null;
 let gCurrentRecipeDetailSelection = null;
+let gActiveCategories = new Set(); // empty + !gAllCategoriesOff means all enabled categories visible
+let gAllCategoriesOff = false;
 const RECIPES_FILEPATH = "./data/recipes.json"
 const ITEMS_FILEPATH = "./data/items.json"
 const INVENTORIES_FILEPATH = "./data/playerInventories.json"
@@ -489,11 +491,150 @@ function addCategoryToItems(players) {
     return players;
 }
 
-function sortItemsByCategory(players) {
-    for (const player of players){
-        player.items.sort((a, b) => a.category.localeCompare(b.category));
+function getAllInventoryCategories() {
+    const recipeCats = [...new Set(gAllRecipes.map(r => r.category).filter(Boolean))].sort();
+    return [...new Set([...recipeCats, "Base Material", "Unknown Item"])];
+}
+
+function getSelectedPlayerName() {
+    const dropdown = document.getElementById("playersInventoryDropdown");
+    return dropdown ? dropdown.value : "";
+}
+
+function getSelectedPlayerInventories() {
+    const selectedPlayerName = getSelectedPlayerName();
+    const allInventories = getInventories();
+    if (!selectedPlayerName) return allInventories;
+    return allInventories.filter(i => i.playerName === selectedPlayerName);
+}
+
+function getAvailableCategoriesForSelectedPlayer(categories) {
+    const items = getSelectedPlayerInventories();
+    const available = new Set(items.map(i => i.category).filter(Boolean));
+    return categories.filter(cat => available.has(cat));
+}
+
+function rebuildInventoryCategoryPills() {
+    buildCategoryPills(getAllInventoryCategories());
+}
+
+function buildCategoryPills(categories) {
+    const container = document.getElementById("inv-category-pills");
+    if (!container) return;
+    container.innerHTML = "";
+
+    const enabledCategories = getAvailableCategoriesForSelectedPlayer(categories);
+    const enabledSet = new Set(enabledCategories);
+
+    for (const cat of [...gActiveCategories]) {
+        if (!enabledSet.has(cat)) gActiveCategories.delete(cat);
     }
-    return players;
+
+    function isAllOn() {
+        if (gAllCategoriesOff) return false;
+        if (gActiveCategories.size === 0) return true;
+        return enabledCategories.length > 0 && enabledCategories.every(cat => gActiveCategories.has(cat));
+    }
+
+    function syncAllPill() {
+        const allPill = container.querySelector("[data-category='__all__']");
+        if (!allPill) return;
+        const allOn = isAllOn();
+        allPill.classList.toggle("is-active", allOn);
+        allPill.setAttribute("aria-pressed", allOn ? "true" : "false");
+    }
+
+    function syncIndividualPills() {
+        container.querySelectorAll(".inv-pill:not([data-category='__all__'])").forEach(pill => {
+            const cat = pill.dataset.category;
+            const isEnabled = enabledSet.has(cat);
+            const isActive = isEnabled && !gAllCategoriesOff && (gActiveCategories.size === 0 || gActiveCategories.has(cat));
+
+            pill.disabled = !isEnabled;
+            pill.classList.toggle("is-disabled", !isEnabled);
+            pill.classList.toggle("is-active", isActive);
+            pill.setAttribute("aria-pressed", isActive ? "true" : "false");
+            pill.setAttribute("aria-disabled", !isEnabled ? "true" : "false");
+        });
+    }
+
+    const allPill = document.createElement("button");
+    allPill.type = "button";
+    allPill.className = "btn inv-pill";
+    allPill.dataset.category = "__all__";
+    allPill.textContent = "All";
+    allPill.addEventListener("click", () => {
+        if (isAllOn()) {
+            gAllCategoriesOff = true;
+            gActiveCategories.clear();
+        } else {
+            gAllCategoriesOff = false;
+            gActiveCategories.clear();
+        }
+
+        syncIndividualPills();
+        syncAllPill();
+        initInventoriesListPage();
+    });
+    container.appendChild(allPill);
+
+    for (const cat of categories) {
+        const pill = document.createElement("button");
+        pill.type = "button";
+        pill.className = "btn inv-pill";
+        pill.dataset.category = cat;
+        pill.textContent = cat;
+        pill.addEventListener("click", () => {
+            if (!enabledSet.has(cat)) return;
+
+            if (gAllCategoriesOff) {
+                gAllCategoriesOff = false;
+                gActiveCategories.clear();
+                gActiveCategories.add(cat);
+            } else {
+                if (gActiveCategories.size === 0) {
+                    for (const enabledCategory of enabledCategories) {
+                        gActiveCategories.add(enabledCategory);
+                    }
+                }
+
+                if (gActiveCategories.has(cat)) {
+                    gActiveCategories.delete(cat);
+                } else {
+                    gActiveCategories.add(cat);
+                }
+
+                if (gActiveCategories.size === 0) {
+                    gAllCategoriesOff = true;
+                } else if (gActiveCategories.size === enabledCategories.length) {
+                    gAllCategoriesOff = false;
+                    gActiveCategories.clear();
+                }
+            }
+
+            syncIndividualPills();
+            syncAllPill();
+            initInventoriesListPage();
+        });
+        container.appendChild(pill);
+    }
+
+    syncIndividualPills();
+    syncAllPill();
+}
+
+function toggleCategoryPanel() {
+    const panel = document.getElementById("inv-category-panel");
+    const btn = document.getElementById("inv-filter-toggle");
+    if (!panel) return;
+    const isHidden = panel.hasAttribute("hidden");
+    if (isHidden) {
+        panel.removeAttribute("hidden");
+        if (btn) btn.classList.add("is-active");
+    } else {
+        panel.setAttribute("hidden", "");
+        if (btn) btn.classList.remove("is-active");
+    }
 }
 
 async function refreshInventories() {
@@ -516,16 +657,16 @@ async function refreshInventories() {
         // Re-fetch the freshly written JSON file
         const data = await fetch(INVENTORIES_FILEPATH + "?t=" + Date.now()).then(r => r.json());
         gAllPlayers = data.players || [];
+        addCategoryToItems(gAllPlayers);
 
-        const dropdown = document.getElementById("playersInventoryDropdown");
-        const currentSelection = dropdown ? dropdown.value : "";
-
-        populateDropdownFromList(gAllPlayers, "playersInventoryDropdown", "name", 0);
-
-        if (currentSelection && dropdown) {
-            dropdown.value = currentSelection;
+        const playerDropdown = document.getElementById("playersInventoryDropdown");
+        if (typeof window.mmSyncPlayerDropdown === "function") {
+            window.mmSyncPlayerDropdown(gAllPlayers);
+        } else if (playerDropdown && playerDropdown.options.length === 0) {
+            populateDropdownFromList(gAllPlayers, "playersInventoryDropdown", "name", 0);
         }
 
+        rebuildInventoryCategoryPills();
         initInventoriesListPage();
 
         // Update last-synced label
@@ -558,40 +699,21 @@ async function refreshInventories() {
     }
 }
 
-function initInventoriesListPage(){
+function initInventoriesListPage() {
     let players = gAllPlayers.length > 0 ? gAllPlayers : [];
-    let items = [];
-    const allInventories = getInventories();
 
+    // Mutate first so spread copies in getInventories() include .category
     players = addCategoryToItems(players);
-    players = sortItemsByCategory(players);
+    let items = getSelectedPlayerInventories();
 
-    let pageDropdownId = "playersInventoryDropdown"
-    const selectedPlayerName = (document.getElementById(pageDropdownId).value);
-    if (selectedPlayerName) {
-        items = allInventories.filter(player => player.playerName === selectedPlayerName);
+    if (gAllCategoriesOff) {
+        items = [];
+    } else if (gActiveCategories.size > 0) {
+        items = items.filter(i => gActiveCategories.has(i.category));
     }
 
-    let pageDropdownCategoryId = "playersInventoryCategoryDropdown"
-    const selectedCategory = (document.getElementById(pageDropdownCategoryId).value);
-    if (selectedCategory === "All Categories"){
-        // Do nothing
-    } else if (selectedCategory){
-        items = items.filter(i => i.category == selectedCategory);
-    }
-
-    items = items.sort((a, b) => a.name.localeCompare(b.name));
-
-    let contentId = "playerInventoryList"
-    let textProperty = "name"
-
-
-    let currentCategory = items.category;
-    const header = document.createElement("h3");
-    header.textContent = currentCategory;
-    document.getElementById(contentId).appendChild(header);
-
-    renderHyperlinkList(items, document.getElementById(contentId), textProperty, "", true);
+    items.sort((a, b) => a.name.localeCompare(b.name));
+    renderHyperlinkList(items, document.getElementById("playerInventoryList"), "name", "", true);
 }
 
 // INITIALIZATION
@@ -657,22 +779,24 @@ document.addEventListener("DOMContentLoaded", () => {
         // INVENTORIES.HTML PAGE
         pageId = "playerInventoryList"
         if (document.getElementById(pageId)) {
+            addCategoryToItems(gAllPlayers);
 
-            let pageDropdownPlayerId = "playersInventoryDropdown"
-            let pageDropdownCategoryId = "playersInventoryCategoryDropdown"
-            let playerIdProperty = "name"
-            let recipeCategoryId = "category"
-            let numPresetOptions = 0;
+            const playerDropdown = document.getElementById("playersInventoryDropdown");
+            if (typeof window.mmSyncPlayerDropdown === "function") {
+                window.mmSyncPlayerDropdown(gAllPlayers);
+            } else if (playerDropdown && playerDropdown.options.length === 0) {
+                populateDropdownFromList(gAllPlayers, "playersInventoryDropdown", "name", 0);
+            }
 
-            populateDropdownFromList(gAllPlayers, pageDropdownPlayerId, playerIdProperty, numPresetOptions);
-
-            numPresetOptions = 3;
-            populateDropdownFromList(gAllRecipes, pageDropdownCategoryId, recipeCategoryId, numPresetOptions);
+            rebuildInventoryCategoryPills();
 
             initInventoriesListPage();
-                
-            document.getElementById(pageDropdownPlayerId).addEventListener("change", initInventoriesListPage);
-            document.getElementById(pageDropdownCategoryId).addEventListener("change", initInventoriesListPage);
+
+            document.getElementById("playersInventoryDropdown").addEventListener("change", () => {
+                rebuildInventoryCategoryPills();
+                initInventoriesListPage();
+            });
+            document.getElementById("inv-filter-toggle").addEventListener("click", toggleCategoryPanel);
             document.getElementById("refreshInventoryBtn").addEventListener("click", refreshInventories);
         }
 

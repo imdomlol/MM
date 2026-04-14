@@ -1,48 +1,49 @@
 function initThemes() {
   const KEY_THEME = "mm_theme";
   const KEY_OWNER = "mm_theme_owner";
+  const KEY_PLAYER = "mm_selected_player";
 
   const themeSelect = document.getElementById("themeSelect");
-  const isInventoriesPage = window.location.pathname.endsWith("inventories.html");
   const playerSelect = document.getElementById("playersInventoryDropdown");
   const SECRET_PREFIX = "secret:";
+  const playerDataPath = "./data/playerInventories.json";
 
-  function apply(themeValue) {
-    if (themeValue.startsWith(SECRET_PREFIX)) {
-      const owner = themeValue.slice(SECRET_PREFIX.length);
-      document.documentElement.setAttribute("data-theme", "secret");
-      document.documentElement.setAttribute("data-secret-owner", owner);
-    } else {
-      document.documentElement.setAttribute("data-theme", themeValue);
-      document.documentElement.removeAttribute("data-secret-owner");
-    }
-
-    // Only set dropdown value if option exists on this page
-    if (themeSelect) {
-      const hasOption = [...themeSelect.options].some(o => o.value === themeValue);
-      if (hasOption) themeSelect.value = themeValue;
-    }
+  function getSecretOwner(themeValue) {
+    return themeValue.startsWith(SECRET_PREFIX) ? themeValue.slice(SECRET_PREFIX.length) : "";
   }
 
   function getSavedTheme() {
     return localStorage.getItem(KEY_THEME) || "dark";
   }
 
-  function getSavedOwner() {
-    return localStorage.getItem(KEY_OWNER) || "";
+  function getSavedPlayer() {
+    return localStorage.getItem(KEY_PLAYER) || "";
   }
 
-  // Update the secret option
-  function syncSecretOption() {
-    if (!isInventoriesPage || !themeSelect || !playerSelect) return;
+  function apply(themeValue) {
+    if (themeValue.startsWith(SECRET_PREFIX)) {
+      const owner = getSecretOwner(themeValue);
+      document.documentElement.setAttribute("data-theme", "secret");
+      document.documentElement.setAttribute("data-secret-owner", owner);
+      localStorage.setItem(KEY_OWNER, owner);
+    } else {
+      document.documentElement.setAttribute("data-theme", themeValue);
+      document.documentElement.removeAttribute("data-secret-owner");
+      localStorage.removeItem(KEY_OWNER);
+    }
 
-    const player = playerSelect.value;
-    if (!player) return;
+    if (themeSelect) {
+      const hasOption = [...themeSelect.options].some(o => o.value === themeValue);
+      if (hasOption) themeSelect.value = themeValue;
+    }
+  }
+
+  function syncSecretOption(player) {
+    if (!themeSelect || !player) return;
 
     const value = `${SECRET_PREFIX}${player}`;
     const label = player.trim().split(/\s+/)[0];
 
-    // Add this player's secret option if missing
     let opt = themeSelect.querySelector(`option[value="${CSS.escape(value)}"]`);
     if (!opt) {
       opt = document.createElement("option");
@@ -50,25 +51,87 @@ function initThemes() {
       opt.textContent = label;
       themeSelect.appendChild(opt);
     } else {
-      opt.textContent = label; // keep label fresh just in case
+      opt.textContent = label;
     }
   }
 
+  function syncPlayerDropdown(players) {
+    if (!playerSelect) return "";
 
-  apply(localStorage.getItem(KEY_THEME) || "dark");
+    const names = (players || []).map(player => player.name).filter(Boolean);
+    const previousValue = playerSelect.value;
+    const savedPlayer = getSavedPlayer();
+    const savedOwner = getSecretOwner(getSavedTheme());
 
-  if (isInventoriesPage && themeSelect && playerSelect) {
-    syncSecretOption();
+    const preferredPlayer = names.includes(savedOwner)
+      ? savedOwner
+      : (names.includes(savedPlayer) ? savedPlayer : (names[0] || ""));
+
+    playerSelect.innerHTML = "";
+    for (const name of names) {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      playerSelect.appendChild(opt);
+    }
+
+    if (preferredPlayer) {
+      playerSelect.value = preferredPlayer;
+      localStorage.setItem(KEY_PLAYER, preferredPlayer);
+      syncSecretOption(preferredPlayer);
+
+      if (preferredPlayer !== previousValue) {
+        playerSelect.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    }
+
+    return preferredPlayer;
+  }
+
+  window.mmSyncPlayerDropdown = syncPlayerDropdown;
+
+  apply(getSavedTheme());
+
+  if (playerSelect) {
+    fetch(playerDataPath)
+      .then(response => response.json())
+      .then(data => syncPlayerDropdown(data.players || []))
+      .catch(error => console.error("Failed to load player dropdown:", error));
+
     playerSelect.addEventListener("change", () => {
-      syncSecretOption();
+      const player = playerSelect.value;
+      if (!player) return;
+
+      localStorage.setItem(KEY_PLAYER, player);
+      syncSecretOption(player);
+
+      const currentTheme = themeSelect ? themeSelect.value : "";
+      if (currentTheme.startsWith(SECRET_PREFIX)) {
+        const nextTheme = `${SECRET_PREFIX}${player}`;
+        if (themeSelect) {
+          let opt = themeSelect.querySelector(`option[value="${CSS.escape(nextTheme)}"]`);
+          if (!opt) {
+            opt = document.createElement("option");
+            opt.value = nextTheme;
+            opt.textContent = player.trim().split(/\s+/)[0];
+            themeSelect.appendChild(opt);
+          }
+          themeSelect.value = nextTheme;
+        }
+        localStorage.setItem(KEY_THEME, nextTheme);
+        localStorage.setItem(KEY_OWNER, player);
+        apply(nextTheme);
+      }
     });
   }
 
-  // ---- Theme dropdown change handler ----
   if (themeSelect) {
     themeSelect.addEventListener("change", () => {
       const chosen = themeSelect.value;
       localStorage.setItem(KEY_THEME, chosen);
+      if (chosen.startsWith(SECRET_PREFIX)) {
+        localStorage.setItem(KEY_OWNER, getSecretOwner(chosen));
+      }
       apply(chosen);
     });
   }
