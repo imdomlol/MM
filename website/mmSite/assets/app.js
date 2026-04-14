@@ -10,6 +10,7 @@ import { initCraftPage } from "./craft.js";
 export let gAllRecipes = [];
 export let gAllItems = [];
 export let gAllPlayers = [];
+let gRecipesLastUpdated = "";
 let gEqualizeCardSizesFunction = null;
 let gCurrentRecipeDetailSelection = null;
 let gActiveCategories = new Set(); // empty + !gAllCategoriesOff means all enabled categories visible
@@ -159,6 +160,65 @@ function initRecipesPage() {
     let contentId = "allRecipes"
     let contentProperty = "name"
     renderHyperlinkList(result, document.getElementById(contentId), contentProperty);
+}
+
+function updateRecipesLastSyncedLabel(lastUpdated) {
+    const syncedLabel = document.getElementById("recipesLastSynced");
+    if (!syncedLabel || !lastUpdated) return;
+    syncedLabel.textContent = "Synced " + new Date(lastUpdated).toLocaleTimeString();
+}
+
+async function refreshRecipesData() {
+    const btn = document.getElementById("refreshRecipesBtn");
+    const icon = btn ? btn.querySelector(".refresh-icon") : null;
+
+    if (btn) {
+        btn.disabled = true;
+        btn.classList.add("is-loading");
+    }
+
+    try {
+        const apiResp = await fetch("/api/refresh-recipes", { method: "POST" });
+        if (!apiResp.ok) {
+            const err = await apiResp.json().catch(() => ({}));
+            throw new Error(err.error || `Server returned ${apiResp.status}`);
+        }
+
+        const ts = Date.now();
+        const [recipesData, itemsData] = await Promise.all([
+            fetch(RECIPES_FILEPATH + "?t=" + ts).then(r => r.json()),
+            fetch(ITEMS_FILEPATH + "?t=" + ts).then(r => r.json()),
+        ]);
+
+        gAllRecipes = extractRecipes(recipesData);
+        gAllItems = itemsData.items || [];
+        gRecipesLastUpdated = recipesData.last_updated || "";
+
+        populateDropdownFromList(gAllRecipes);
+        initRecipesPage();
+        updateRecipesLastSyncedLabel(gRecipesLastUpdated);
+
+        if (icon) {
+            btn.classList.remove("is-loading");
+            icon.textContent = "✓";
+            btn.classList.add("is-success");
+            setTimeout(() => {
+                icon.textContent = "↻";
+                btn.classList.remove("is-success");
+            }, 2000);
+        }
+    } catch (e) {
+        console.error("Failed to refresh recipes:", e);
+        if (icon) {
+            icon.textContent = "✗";
+            setTimeout(() => { icon.textContent = "↻"; }, 2000);
+        }
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.classList.remove("is-loading");
+        }
+    }
 }
 
 // RECIPE.HTML PAGE FUNCTIONS (DETAIL PAGE)
@@ -654,7 +714,7 @@ async function refreshInventories() {
             throw new Error(err.error || `Server returned ${apiResp.status}`);
         }
 
-        // Re-fetch the freshly written JSON file
+        // Re-fetch the freshly written inventory payload
         const data = await fetch(INVENTORIES_FILEPATH + "?t=" + Date.now()).then(r => r.json());
         gAllPlayers = data.players || [];
         addCategoryToItems(gAllPlayers);
@@ -721,6 +781,7 @@ document.addEventListener("DOMContentLoaded", () => {
     Promise.all([
         fetch(RECIPES_FILEPATH).then(r => r.json()).then(data => {
             gAllRecipes = extractRecipes(data);
+            gRecipesLastUpdated = data.last_updated || "";
         }),
         fetch(ITEMS_FILEPATH).then(r => r.json()).then(data => {
             gAllItems = data.items || [];
@@ -736,6 +797,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (document.getElementById(pageId)) {
             populateDropdownFromList(gAllRecipes);
             initRecipesPage();
+            updateRecipesLastSyncedLabel(gRecipesLastUpdated);
             
             let pageSearchId = "search"
             let pageDropdownCategoryId = "category"
@@ -743,6 +805,7 @@ document.addEventListener("DOMContentLoaded", () => {
             document.getElementById(pageSearchId).addEventListener("input", initRecipesPage);
             document.getElementById(pageDropdownCategoryId).addEventListener("change", initRecipesPage);
             document.getElementById(pageDropdownSortId).addEventListener("change", initRecipesPage);
+            document.getElementById("refreshRecipesBtn").addEventListener("click", refreshRecipesData);
         }
 
         // RECIPE.HTML PAGE

@@ -995,21 +995,21 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus {
   to { transform: rotate(360deg); }
 }
 
-#refreshInventoryBtn .refresh-icon {
+.refresh-action-btn .refresh-icon {
   display: inline-block;
   transition: color 120ms ease;
 }
 
-#refreshInventoryBtn.is-loading .refresh-icon {
+.refresh-action-btn.is-loading .refresh-icon {
   animation: mm-spin 0.7s linear infinite;
 }
 
-#refreshInventoryBtn.is-success {
+.refresh-action-btn.is-success {
   background: linear-gradient(180deg, rgba(89,222,164,0.28), rgba(89,222,164,0.14));
   border-color: rgba(89,222,164,0.46);
 }
 
-#refreshInventoryBtn:disabled {
+.refresh-action-btn:disabled {
   opacity: 0.55;
   cursor: wait;
   pointer-events: none;
