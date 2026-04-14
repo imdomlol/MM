@@ -887,6 +887,110 @@ input, select, button { font: inherit; }
   align-self: center;
 }
 
+.item-details-block + .item-details-block {
+  margin-top: 12px;
+}
+
+.item-details-label {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.item-details-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  white-space: normal;
+  line-height: 1.45;
+}
+
+.description-attribute-line {
+  display: block;
+  position: relative;
+  padding-left: 0.95rem;
+  color: var(--accent);
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1.25;
+  text-transform: none;
+  white-space: normal;
+}
+
+.description-attribute-line::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--accent);
+}
+
+.description-attribute-spacer {
+  height: 0;
+}
+
+.description-lore {
+  display: block;
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
+@media (min-width: 1100px) {
+  .recipe-stack.recipe-stack-split {
+    display: grid;
+    grid-template-columns: minmax(240px, 1fr) minmax(560px, 1040px) minmax(240px, 1fr);
+    grid-template-areas:
+      "item requirements related"
+      "item flow related";
+    align-items: stretch;
+    column-gap: 14px;
+    row-gap: 12px;
+  }
+
+  .recipe-stack.recipe-stack-split > #itemDetailsCard {
+    grid-area: item;
+    align-self: stretch;
+    height: 100%;
+  }
+
+  .recipe-stack.recipe-stack-split > #requirementsCard {
+    grid-area: requirements;
+  }
+
+  .recipe-stack.recipe-stack-split > .recipe-side-by-side-row {
+    grid-area: flow;
+    flex-wrap: nowrap;
+    justify-content: center;
+  }
+
+  .recipe-stack.recipe-stack-split > .recipe-side-by-side-row > #ingredientsCard,
+  .recipe-stack.recipe-stack-split > .recipe-side-by-side-row > #resultsCard {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .recipe-stack.recipe-stack-split > .recipe-side-by-side-row > .recipe-flow-arrow {
+    flex: 0 0 auto;
+    align-self: center;
+  }
+
+  .recipe-stack.recipe-stack-split > #relatedRecipesCard {
+    grid-area: related;
+    align-self: stretch;
+    height: 100%;
+  }
+
+  .recipe-stack.recipe-stack-split > #itemDetailsCard,
+  .recipe-stack.recipe-stack-split > #relatedRecipesCard,
+  .recipe-stack.recipe-stack-split > #requirementsCard,
+  .recipe-stack.recipe-stack-split > .recipe-side-by-side-row {
+    width: 100%;
+    max-width: none;
+  }
+}
+
 @media (max-width: 760px) {
   .recipe-side-by-side-row {
     flex-direction: column;

@@ -2,9 +2,9 @@
 build.py — MM data pipeline runner
 
 Runs the full pipeline in order:
-    1. buildRecipesJSON  — fetch+parse recipe HTML into SQLite recipes tables
-    2. buildItemsJSON    — derive SQLite item index from recipes tables
-    3. buildPlayerInventoriesJSON — sync inventories from Google Sheets into SQLite
+    1. refresh_recipes      — fetch+parse recipe HTML into SQLite recipes tables
+    2. refresh_items        — derive SQLite item index from recipes tables
+    3. refresh_inventories  — sync inventories from Google Sheets into SQLite
 
 All steps respect their individual caches unless --force is passed.
 
@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent
-SCRIPTS_DIR = REPO_ROOT / "website" / "mmSite" / "data" / "scripts"
+SCRIPTS_DIR = REPO_ROOT / "data_pipeline" / "cli_entrypoints"
 DB_PATH = REPO_ROOT / "website" / "mmSite" / "data" / "mm.db"
 
 
@@ -48,7 +48,7 @@ def main() -> int:
 
     force_flag = ["--force"] if args.force else []
 
-    recipe_step_cmd = [sys.executable, str(SCRIPTS_DIR / "buildRecipesJSON.py"), "--db", str(DB_PATH)] + force_flag
+    recipe_step_cmd = [sys.executable, str(SCRIPTS_DIR / "refresh_recipes.py"), "--db", str(DB_PATH), "--strict-live-fetch"] + force_flag
     if args.skip_fetch:
         recipe_step_cmd.append("--no-fetch")
 
@@ -59,11 +59,11 @@ def main() -> int:
         ),
         (
             "Build: items tables",
-            [sys.executable, str(SCRIPTS_DIR / "buildItemsJSON.py"), "--db", str(DB_PATH)] + force_flag,
+            [sys.executable, str(SCRIPTS_DIR / "refresh_items.py"), "--db", str(DB_PATH)] + force_flag,
         ),
         (
             "Build: player inventories tables",
-            [sys.executable, str(SCRIPTS_DIR / "buildPlayerInventoriesJSON.py"),
+            [sys.executable, str(SCRIPTS_DIR / "refresh_inventories.py"),
              "--max-age", str(args.max_age), "--db", str(DB_PATH)] + force_flag,
         ),
     ]

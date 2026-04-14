@@ -53,7 +53,7 @@ def get_player_inventories():
 
 @app.route("/api/refresh-inventories", methods=["POST"])
 def refresh_inventories():
-    script = REPO_ROOT / "website" / "mmSite" / "data" / "scripts" / "buildPlayerInventoriesJSON.py"
+    script = REPO_ROOT / "data_pipeline" / "cli_entrypoints" / "refresh_inventories.py"
     payload = request.get_json(silent=True) or {}
     selected_sheet_id = str(payload.get("sheetId") or "").strip()
     selected_player_name = str(payload.get("playerName") or "").strip()
@@ -77,34 +77,24 @@ def refresh_inventories():
 
 @app.route("/api/refresh-recipes", methods=["POST"])
 def refresh_recipes():
-    scripts_dir = REPO_ROOT / "website" / "mmSite" / "data" / "scripts"
-    recipe_script = scripts_dir / "buildRecipesJSON.py"
-    items_script = scripts_dir / "buildItemsJSON.py"
+    scripts_dir = REPO_ROOT / "data_pipeline" / "cli_entrypoints"
+    recipe_script = scripts_dir / "refresh_recipes.py"
+    items_script = scripts_dir / "refresh_items.py"
 
     recipe_result = subprocess.run(
-        [sys.executable, str(recipe_script), "--force", "--db", str(DB_PATH)],
+        [sys.executable, str(recipe_script), "--force", "--db", str(DB_PATH), "--strict-live-fetch"],
         capture_output=True,
         text=True,
         cwd=str(REPO_ROOT),
     )
-    used_cached_source = False
     if recipe_result.returncode != 0:
-        # Fallback: if live fetch is unavailable, retry using cached recipe source.
-        recipe_result = subprocess.run(
-            [sys.executable, str(recipe_script), "--force", "--no-fetch", "--db", str(DB_PATH)],
-            capture_output=True,
-            text=True,
-            cwd=str(REPO_ROOT),
-        )
-        used_cached_source = recipe_result.returncode == 0
-        if recipe_result.returncode != 0:
-            return jsonify(
-                {
-                    "ok": False,
-                    "step": "buildRecipesJSON.py",
-                    "error": (recipe_result.stderr or recipe_result.stdout).strip(),
-                }
-            ), 500
+        return jsonify(
+            {
+                "ok": False,
+                "step": "refresh_recipes.py",
+                "error": (recipe_result.stderr or recipe_result.stdout).strip(),
+            }
+        ), 500
 
     items_result = subprocess.run(
         [sys.executable, str(items_script), "--force", "--db", str(DB_PATH)],
@@ -116,7 +106,7 @@ def refresh_recipes():
         return jsonify(
             {
                 "ok": False,
-                "step": "buildItemsJSON.py",
+                "step": "refresh_items.py",
                 "error": (items_result.stderr or items_result.stdout).strip(),
             }
         ), 500
@@ -125,7 +115,6 @@ def refresh_recipes():
         {
             "ok": True,
             "message": "Recipes and items refreshed.",
-            "usedCachedSource": used_cached_source,
             "recipeLog": recipe_result.stdout.strip(),
             "itemsLog": items_result.stdout.strip(),
         }
