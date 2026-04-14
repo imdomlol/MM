@@ -1,28 +1,15 @@
-"""
-build.py — MM data pipeline runner
-
-Runs the full pipeline in order:
-    1. refresh_recipes      — fetch+parse recipe HTML into SQLite recipes tables
-    2. refresh_items        — derive SQLite item index from recipes tables
-    3. refresh_inventories  — sync inventories from Google Sheets into SQLite
-
-All steps respect their individual caches unless --force is passed.
-
-Usage examples:
-    python build.py                         # full pipeline (fetch + all DB builds)
-    python build.py --skip-fetch            # skip live fetch, use cached HTML
-    python build.py --skip-fetch --force    # force-rebuild all DB tables, ignore caches
-    python build.py --max-age 0             # always refetch inventories from Sheets
-"""
+from __future__ import annotations
 
 import argparse
 import subprocess
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent
+from data_pipeline.mmdb import DEFAULT_DB_PATH
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_DIR = REPO_ROOT / "data_pipeline" / "cli_entrypoints"
-DB_PATH = REPO_ROOT / "website" / "mmSite" / "data" / "mm.db"
+DB_PATH = DEFAULT_DB_PATH
 
 
 def run_step(label: str, cmd: list[str]) -> bool:

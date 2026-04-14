@@ -5,8 +5,8 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-REPO_ROOT = Path(__file__).resolve().parent
-DEFAULT_DB_PATH = REPO_ROOT / "website" / "mmSite" / "data" / "mm.db"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_DB_PATH = REPO_ROOT / "data_pipeline" / "data" / "mm.db"
 
 
 def get_connection(db_path: str | Path | None = None) -> sqlite3.Connection:
@@ -264,17 +264,19 @@ def replace_items_payload(conn: sqlite3.Connection, payload: dict[str, Any], sou
         for recipe_id in item.get("recipeIds") or []:
             if recipe_id:
                 conn.execute(
-                    "INSERT OR IGNORE INTO item_recipe_links(item_id, recipe_id, is_primary) VALUES(?, ?, 1)",
+                    "INSERT INTO item_recipe_links(item_id, recipe_id, is_primary) VALUES(?, ?, 1)",
                     (item_id, recipe_id),
                 )
 
         for recipe_id in item.get("relatedRecipeIds") or []:
             if recipe_id:
                 conn.execute(
-                    "INSERT OR IGNORE INTO item_recipe_links(item_id, recipe_id, is_primary) VALUES(?, ?, 0)",
+                    "INSERT INTO item_recipe_links(item_id, recipe_id, is_primary) VALUES(?, ?, 0)",
                     (item_id, recipe_id),
                 )
 
+    if payload.get("last_updated"):
+        set_meta(conn, "items_last_updated", str(payload["last_updated"]))
     if source_hash:
         set_meta(conn, "items_source_hash", source_hash)
 
@@ -287,7 +289,6 @@ def replace_item_catalog_payload(conn: sqlite3.Connection, payload: dict[str, An
         item_id = item.get("itemId")
         if not item_id:
             continue
-
         conn.execute(
             """
             INSERT INTO item_catalog(item_id, name, folder_path, description_text, image_path)
@@ -306,46 +307,20 @@ def replace_item_catalog_payload(conn: sqlite3.Connection, payload: dict[str, An
         set_meta(conn, "item_catalog_source_hash", source_hash)
 
 
-def read_item_catalog_payload(conn: sqlite3.Connection) -> dict[str, Any]:
-    init_schema(conn)
-    rows = conn.execute(
-        """
-        SELECT item_id, name, folder_path, description_text, image_path
-        FROM item_catalog
-        ORDER BY name
-        """
-    ).fetchall()
-
-    items = []
-    for row in rows:
-        items.append(
-            {
-                "itemId": row["item_id"],
-                "name": row["name"],
-                "folderPath": row["folder_path"] or "",
-                "descriptionText": row["description_text"] or "",
-                "imagePath": row["image_path"] or "",
-            }
-        )
-
-    return {"items": items}
-
-
 def replace_player_inventories_payload(conn: sqlite3.Connection, payload: dict[str, Any], fetched_at: str | None = None) -> None:
     init_schema(conn)
     conn.execute("DELETE FROM player_inventory_items")
     conn.execute("DELETE FROM players")
 
     for player in payload.get("players", []):
-        sheet_id = player.get("sheetId") or ""
+        sheet_id = (player.get("sheetId") or "").strip()
         if not sheet_id:
             continue
         conn.execute(
             "INSERT INTO players(sheet_id, name) VALUES(?, ?)",
             (sheet_id, player.get("name") or "Unknown"),
         )
-
-        for item in player.get("items") or []:
+        for item in player.get("items", []):
             conn.execute(
                 """
                 INSERT INTO player_inventory_items(sheet_id, item_name, qty, item_id)
@@ -362,152 +337,105 @@ def replace_player_inventories_payload(conn: sqlite3.Connection, payload: dict[s
     if payload.get("last_updated"):
         set_meta(conn, "inventories_last_updated", str(payload["last_updated"]))
     if fetched_at:
-        set_meta(conn, "inventories_fetched_at", fetched_at)
+        set_meta(conn, "inventories_last_fetched", str(fetched_at))
 
 
 def read_recipes_payload(conn: sqlite3.Connection) -> dict[str, Any]:
     init_schema(conn)
-    rows = conn.execute(
-        """
-        SELECT r.recipe_id, r.book_id, b.name AS book_name, b.description, r.name, r.item_id,
-               r.tools_json, r.crafting_time_minutes, r.requirements_text
-        FROM recipes r
-        JOIN books b ON b.book_id = r.book_id
-        ORDER BY b.name, r.name
-        """
-    ).fetchall()
-
-    requirements = conn.execute(
-        "SELECT recipe_id, position, skill, level FROM recipe_requirements ORDER BY recipe_id, position"
-    ).fetchall()
-    ingredients = conn.execute(
-        "SELECT recipe_id, position, item_name, qty, item_id FROM recipe_ingredients ORDER BY recipe_id, position"
-    ).fetchall()
-    results = conn.execute(
-        "SELECT recipe_id, position, item_name, qty, item_id FROM recipe_results ORDER BY recipe_id, position"
-    ).fetchall()
-
-    req_map: dict[str, list[dict[str, Any]]] = {}
-    for req in requirements:
-        req_map.setdefault(req["recipe_id"], []).append({"skill": req["skill"], "level": req["level"]})
-
-    ing_map: dict[str, list[dict[str, Any]]] = {}
-    for ing in ingredients:
-        ing_map.setdefault(ing["recipe_id"], []).append(
-            {"item": ing["item_name"], "qty": ing["qty"], "itemId": ing["item_id"]}
-        )
-
-    res_map: dict[str, list[dict[str, Any]]] = {}
-    for result in results:
-        res_map.setdefault(result["recipe_id"], []).append(
-            {"item": result["item_name"], "qty": result["qty"], "itemId": result["item_id"]}
-        )
-
-    books: dict[str, dict[str, Any]] = {}
-    for row in rows:
-        book_id = row["book_id"]
-        if book_id not in books:
-            books[book_id] = {
-                "bookId": book_id,
-                "name": row["book_name"],
-                "description": row["description"] or "",
-                "recipes": [],
-            }
-        tools = []
-        try:
-            tools = json.loads(row["tools_json"] or "[]")
-        except json.JSONDecodeError:
-            tools = []
-        books[book_id]["recipes"].append(
-            {
-                "name": row["name"],
-                "itemId": row["item_id"],
-                "recipeId": row["recipe_id"],
-                "bookId": row["book_id"],
-                "tools": tools,
-                "craftingTimeMinutes": row["crafting_time_minutes"],
-                "requirementsText": row["requirements_text"] or "",
-                "requirements": req_map.get(row["recipe_id"], []),
-                "ingredients": ing_map.get(row["recipe_id"], []),
-                "results": res_map.get(row["recipe_id"], []),
-            }
-        )
-
+    books: list[dict[str, Any]] = []
+    for book_row in conn.execute("SELECT book_id, name, description FROM books ORDER BY name").fetchall():
+        recipes: list[dict[str, Any]] = []
+        for recipe_row in conn.execute(
+            "SELECT * FROM recipes WHERE book_id = ? ORDER BY name",
+            (book_row["book_id"],),
+        ).fetchall():
+            recipe_id = recipe_row["recipe_id"]
+            requirements = [dict(r) for r in conn.execute(
+                "SELECT skill, level FROM recipe_requirements WHERE recipe_id = ? ORDER BY position",
+                (recipe_id,),
+            ).fetchall()]
+            ingredients = [dict(r) for r in conn.execute(
+                "SELECT item_name AS item, qty, item_id AS itemId FROM recipe_ingredients WHERE recipe_id = ? ORDER BY position",
+                (recipe_id,),
+            ).fetchall()]
+            results = [dict(r) for r in conn.execute(
+                "SELECT item_name AS item, qty, item_id AS itemId FROM recipe_results WHERE recipe_id = ? ORDER BY position",
+                (recipe_id,),
+            ).fetchall()]
+            data = dict(recipe_row)
+            data["tools"] = json.loads(data.pop("tools_json") or "[]")
+            data["requirements"] = requirements
+            data["ingredients"] = ingredients
+            data["results"] = results
+            recipes.append(data)
+        books.append({
+            "bookId": book_row["book_id"],
+            "name": book_row["name"],
+            "description": book_row["description"],
+            "recipes": recipes,
+        })
     return {
-        "last_updated": get_meta(conn, "recipes_last_updated"),
-        "books": list(books.values()),
+        "last_updated": get_meta(conn, "recipes_last_updated") or "",
+        "books": books,
     }
 
 
 def read_items_payload(conn: sqlite3.Connection) -> dict[str, Any]:
     init_schema(conn)
-    rows = conn.execute(
-        """
-        SELECT item_id, name, folder_path, description_text, image_path, category
-        FROM items
-        ORDER BY name
-        """
-    ).fetchall()
-    link_rows = conn.execute(
-        "SELECT item_id, recipe_id, is_primary FROM item_recipe_links ORDER BY item_id, recipe_id"
-    ).fetchall()
+    items: list[dict[str, Any]] = []
+    for row in conn.execute("SELECT item_id, name, folder_path, description_text, image_path, category FROM items ORDER BY name").fetchall():
+        recipe_ids = [r[0] for r in conn.execute(
+            "SELECT recipe_id FROM item_recipe_links WHERE item_id = ? AND is_primary = 1 ORDER BY recipe_id",
+            (row["item_id"],),
+        ).fetchall()]
+        related_recipe_ids = [r[0] for r in conn.execute(
+            "SELECT recipe_id FROM item_recipe_links WHERE item_id = ? AND is_primary = 0 ORDER BY recipe_id",
+            (row["item_id"],),
+        ).fetchall()]
+        items.append({
+            "itemId": row["item_id"],
+            "name": row["name"],
+            "folderPath": row["folder_path"],
+            "descriptionText": row["description_text"],
+            "imagePath": row["image_path"],
+            "category": row["category"],
+            "recipeIds": recipe_ids,
+            "relatedRecipeIds": related_recipe_ids,
+        })
+    return {
+        "last_updated": get_meta(conn, "items_last_updated") or "",
+        "items": items,
+    }
 
-    links: dict[str, dict[str, list[str]]] = {}
-    for lr in link_rows:
-        bucket = links.setdefault(lr["item_id"], {"primary": [], "related": []})
-        if lr["is_primary"] == 1:
-            bucket["primary"].append(lr["recipe_id"])
-        else:
-            bucket["related"].append(lr["recipe_id"])
 
-    items = []
-    for row in rows:
-        item_id = row["item_id"]
-        item_links = links.get(item_id, {"primary": [], "related": []})
-        items.append(
-            {
-                "name": row["name"],
-                "itemId": item_id,
-                "folderPath": row["folder_path"] or "",
-                "descriptionText": row["description_text"] or "",
-                "imagePath": row["image_path"] or "",
-                "category": row["category"] or "",
-                "recipeIds": item_links["primary"],
-                "relatedRecipeIds": item_links["related"],
-            }
-        )
-
+def read_item_catalog_payload(conn: sqlite3.Connection) -> dict[str, Any]:
+    init_schema(conn)
+    items: list[dict[str, Any]] = []
+    for row in conn.execute("SELECT item_id, name, folder_path, description_text, image_path FROM item_catalog ORDER BY name").fetchall():
+        items.append({
+            "itemId": row["item_id"],
+            "name": row["name"],
+            "folderPath": row["folder_path"],
+            "descriptionText": row["description_text"],
+            "imagePath": row["image_path"],
+        })
     return {"items": items}
 
 
 def read_player_inventories_payload(conn: sqlite3.Connection) -> dict[str, Any]:
     init_schema(conn)
-    players = conn.execute("SELECT sheet_id, name FROM players ORDER BY name").fetchall()
-    rows = conn.execute(
-        "SELECT sheet_id, item_name, qty, item_id FROM player_inventory_items ORDER BY sheet_id, item_name"
-    ).fetchall()
-
-    items_by_sheet: dict[str, list[dict[str, Any]]] = {}
-    for row in rows:
-        items_by_sheet.setdefault(row["sheet_id"], []).append(
-            {
-                "name": row["item_name"],
-                "qty": row["qty"],
-                "itemId": row["item_id"],
-            }
-        )
-
-    output_players = []
-    for player in players:
-        output_players.append(
-            {
-                "sheetId": player["sheet_id"],
-                "name": player["name"],
-                "items": items_by_sheet.get(player["sheet_id"], []),
-            }
-        )
-
+    players: list[dict[str, Any]] = []
+    for player_row in conn.execute("SELECT sheet_id, name FROM players ORDER BY name").fetchall():
+        items = [dict(r) for r in conn.execute(
+            "SELECT item_name AS name, qty, item_id AS itemId FROM player_inventory_items WHERE sheet_id = ? ORDER BY item_name",
+            (player_row["sheet_id"],),
+        ).fetchall()]
+        players.append({
+            "sheetId": player_row["sheet_id"],
+            "name": player_row["name"],
+            "items": items,
+        })
     return {
-        "last_updated": get_meta(conn, "inventories_last_updated"),
-        "players": output_players,
+        "last_updated": get_meta(conn, "inventories_last_updated") or "",
+        "players": players,
     }

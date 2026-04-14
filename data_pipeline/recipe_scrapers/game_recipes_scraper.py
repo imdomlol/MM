@@ -14,7 +14,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from data_pipeline.selenium_utils import fetch_recipe_page_and_item_catalog_with_selenium
-from mmdb import get_connection, replace_item_catalog_payload, replace_recipes_payload
+from data_pipeline.mmdb import DEFAULT_DB_PATH, get_connection, replace_item_catalog_payload, replace_recipes_payload
 
 
 @dataclass
@@ -301,7 +301,7 @@ def main() -> int:
     ap.add_argument("--recipe-url", default="http://173.29.198.65:30000/game", help="Game URL used for live fetch")
     ap.add_argument("--no-fetch", action="store_true", help="Do not fetch live HTML; use --input or cached .build_cache/recipes_source.html")
     ap.add_argument("--strict-live-fetch", action="store_true", help="Fail immediately if live fetch fails instead of falling back to cached HTML")
-    ap.add_argument("--db", default=str(REPO_ROOT / "website" / "mmSite" / "data" / "mm.db"))
+    ap.add_argument("--db", default=str(DEFAULT_DB_PATH))
     ap.add_argument("--force", "-f", action="store_true", help="Rebuild even if source is unchanged")
     args = ap.parse_args()
 

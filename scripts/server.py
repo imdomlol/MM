@@ -1,29 +1,14 @@
-"""
-server.py — API server for MM
-
-Exposes the Google Sheets inventory sync as an HTTP endpoint so the
-browser Refresh button can trigger it. Static files are served by nginx.
-
-nginx config (add inside your existing server block):
-    location /api/ {
-        proxy_pass http://127.0.0.1:5000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-
-Usage:
-    python server.py
-"""
+from __future__ import annotations
 
 from flask import Flask, jsonify, request
 import subprocess
 import sys
 from pathlib import Path
 
-from mmdb import get_connection, read_items_payload, read_player_inventories_payload, read_recipes_payload
+from data_pipeline.mmdb import DEFAULT_DB_PATH, get_connection, read_items_payload, read_player_inventories_payload, read_recipes_payload
 
-REPO_ROOT = Path(__file__).resolve().parent
-DB_PATH = REPO_ROOT / "website" / "mmSite" / "data" / "mm.db"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DB_PATH = DEFAULT_DB_PATH
 
 app = Flask(__name__)
 
@@ -121,7 +106,12 @@ def refresh_recipes():
     )
 
 
-if __name__ == "__main__":
+def main() -> int:
     print("API server running on http://127.0.0.1:5000")
     print("Proxy /api/ to this from nginx — do not expose port 5000 directly.")
     app.run(host="127.0.0.1", port=5000, debug=False)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

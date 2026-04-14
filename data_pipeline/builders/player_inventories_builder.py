@@ -11,7 +11,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from mmdb import get_connection, read_items_payload, read_player_inventories_payload, replace_player_inventories_payload
+from data_pipeline.mmdb import DEFAULT_DB_PATH, get_connection, read_items_payload, read_player_inventories_payload, replace_player_inventories_payload
 
 
 ITEM_HEADERS = {
@@ -73,7 +73,7 @@ def enrich_item_ids(players: list[dict], db_path: Path) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Sync player inventories from Google Sheets into SQLite")
-    ap.add_argument("--db", default=str(REPO_ROOT / "website" / "mmSite" / "data" / "mm.db"))
+    ap.add_argument("--db", default=str(DEFAULT_DB_PATH))
     ap.add_argument("--force", "-f", action="store_true", help="Refetch even if cache is fresh")
     ap.add_argument("--sheet-id", default="", help="Refresh a single player sheet by sheet ID")
     ap.add_argument("--player-name", default="", help="Optional selected player name for logs")

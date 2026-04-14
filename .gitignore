@@ -12,7 +12,7 @@ Misc/mythmagic-crafter-*.json
 website/mmSite/data/items.json
 website/mmSite/data/recipes.json
 website/mmSite/data/playerInventories.json
-website/mmSite/data/mm.db
+data_pipeline/data/mm.db
 
 # Python cache
 __pycache__/

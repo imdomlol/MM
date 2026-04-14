@@ -6,7 +6,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from mmdb import get_connection, get_meta, read_item_catalog_payload, read_recipes_payload, replace_items_payload
+from data_pipeline.mmdb import DEFAULT_DB_PATH, get_connection, get_meta, read_item_catalog_payload, read_recipes_payload, replace_items_payload
 
 
 def category_from_folder_path(folder_path: str) -> str:
@@ -137,7 +137,7 @@ def build_items_data(db_path: Path, force: bool = False) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Build items data from recipes data in SQLite")
-    ap.add_argument("--db", default=str(REPO_ROOT / "website" / "mmSite" / "data" / "mm.db"))
+    ap.add_argument("--db", default=str(DEFAULT_DB_PATH))
     ap.add_argument("--force", "-f", action="store_true", help="Rebuild even if source is unchanged")
     args = ap.parse_args()
 

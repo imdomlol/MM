@@ -31,30 +31,31 @@ Myth & Magic Helper is a single-page web application designed to enhance the Myt
 
 ## Data Pipeline
 
-Core data is stored in `website/mmSite/data/mm.db`.
+Core data is stored in `data_pipeline/data/mm.db`.
 
 Pipeline code now lives in `data_pipeline/`:
+- `data_pipeline/mmdb.py` — SQLite schema helpers and payload readers/writers.
 - `data_pipeline/selenium_utils.py` — shared Selenium login/navigation/fetch.
 - `data_pipeline/recipe_scrapers/game_recipes_scraper.py` — fetch, parse, validate, and persist recipes.
 - `data_pipeline/builders/items_builder.py` — build item index from recipes payload.
 - `data_pipeline/builders/player_inventories_builder.py` — sync inventories from Sheets.
 - `data_pipeline/cli_entrypoints/` — script entrypoints used by `build.py` and `server.py`.
 
-Compatibility wrappers remain at `website/mmSite/data/scripts/` so existing commands continue to work.
+The actual top-level runners now live in `scripts/`.
 
 From the repository root, build or refresh all core data tables:
 
 ```bash
-python build.py
+python -m scripts.build
 ```
 
 If you need to avoid live recipe fetch for a run, use:
 
 ```bash
-python build.py --skip-fetch
+python -m scripts.build --skip-fetch
 ```
 
-Note: `--skip-fetch` requires either a previously cached source at `.build_cache/recipes_source.html` or a direct `--input` path passed to `buildRecipesJSON.py`.
+Note: `--skip-fetch` requires either a previously cached source at `.build_cache/recipes_source.html` or a direct `--input` path passed to the recipe refresh entrypoint.
 
 ## Testing & Local Hosting
 
@@ -63,7 +64,7 @@ The frontend now fetches data from `/api/*`, so run the Flask API server while h
 From the repository root:
 
 ```bash
-python server.py
+python -m scripts.server
 ```
 
 API routes:
@@ -74,11 +75,11 @@ API routes:
 
 `POST /api/refresh-recipes` runs the recipe scraper and item builder pipeline.
 
-## Scrape Tool
-
-`Scrape/scrape.py` is a standalone graph/analysis helper. It now reuses shared Selenium fetch logic but does not directly orchestrate API refresh flow itself.
-
 The static site can still be served by nginx (recommended for this repo) or any HTTP server.
+
+Windows launcher scripts live in `tools/`:
+- `tools/start_server.bat` starts nginx and the Flask API server.
+- `tools/stop_server.bat` stops nginx and the Flask API server.
 
 ### Using Python
 
