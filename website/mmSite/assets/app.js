@@ -18,6 +18,9 @@ let gAllCategoriesOff = false;
 const RECIPES_FILEPATH = "/api/recipes"
 const ITEMS_FILEPATH = "/api/items"
 const INVENTORIES_FILEPATH = "/api/player-inventories"
+const RECIPES_FALLBACK_FILEPATH = "./data/recipes.json"
+const ITEMS_FALLBACK_FILEPATH = "./data/items.json"
+const INVENTORIES_FALLBACK_FILEPATH = "./data/playerInventories.json"
 const USER_MARKS_STORAGE_KEY = "mm_user_marks_v1"
 
 function createDebouncedResizeHandler() {
@@ -99,6 +102,26 @@ function populateDropdownFromList(list, elementId = "category", listProperty = "
         opt.value = c;
         opt.textContent = c;
         select.appendChild(opt);
+    }
+}
+
+async function fetchJsonWithFallback(primaryPath, fallbackPath) {
+    try {
+        const response = await fetch(primaryPath);
+        if (!response.ok) {
+            throw new Error("HTTP " + response.status);
+        }
+        return await response.json();
+    } catch (primaryError) {
+        if (!fallbackPath) {
+            throw primaryError;
+        }
+
+        const fallbackResponse = await fetch(fallbackPath);
+        if (!fallbackResponse.ok) {
+            throw primaryError;
+        }
+        return await fallbackResponse.json();
     }
 }
 
@@ -186,8 +209,8 @@ async function refreshRecipesData() {
 
         const ts = Date.now();
         const [recipesData, itemsData] = await Promise.all([
-            fetch(RECIPES_FILEPATH + "?t=" + ts).then(r => r.json()),
-            fetch(ITEMS_FILEPATH + "?t=" + ts).then(r => r.json()),
+            fetchJsonWithFallback(RECIPES_FILEPATH + "?t=" + ts, RECIPES_FALLBACK_FILEPATH + "?t=" + ts),
+            fetchJsonWithFallback(ITEMS_FILEPATH + "?t=" + ts, ITEMS_FALLBACK_FILEPATH + "?t=" + ts),
         ]);
 
         gAllRecipes = extractRecipes(recipesData);
@@ -715,7 +738,10 @@ async function refreshInventories() {
         }
 
         // Re-fetch the freshly written inventory payload
-        const data = await fetch(INVENTORIES_FILEPATH + "?t=" + Date.now()).then(r => r.json());
+        const data = await fetchJsonWithFallback(
+            INVENTORIES_FILEPATH + "?t=" + Date.now(),
+            INVENTORIES_FALLBACK_FILEPATH + "?t=" + Date.now(),
+        );
         gAllPlayers = data.players || [];
         addCategoryToItems(gAllPlayers);
 
@@ -779,14 +805,14 @@ function initInventoriesListPage() {
 // INITIALIZATION
 document.addEventListener("DOMContentLoaded", () => {
     Promise.all([
-        fetch(RECIPES_FILEPATH).then(r => r.json()).then(data => {
+        fetchJsonWithFallback(RECIPES_FILEPATH, RECIPES_FALLBACK_FILEPATH).then(data => {
             gAllRecipes = extractRecipes(data);
             gRecipesLastUpdated = data.last_updated || "";
         }),
-        fetch(ITEMS_FILEPATH).then(r => r.json()).then(data => {
+        fetchJsonWithFallback(ITEMS_FILEPATH, ITEMS_FALLBACK_FILEPATH).then(data => {
             gAllItems = data.items || [];
         }),
-        fetch(INVENTORIES_FILEPATH).then(r => r.json()).then(data => {
+        fetchJsonWithFallback(INVENTORIES_FILEPATH, INVENTORIES_FALLBACK_FILEPATH).then(data => {
             gAllPlayers = data.players || [];
         })
     ]).then(() => {
