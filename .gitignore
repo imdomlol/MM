@@ -9,5 +9,5 @@ Misc/mythmagic-crafter-*.json
 .venv.*
 
 # recipe data files
-reciperawAUTO.html
-reciperaw.html
+Scrape/reciperawAUTO.html
+Scrape/reciperaw.html
