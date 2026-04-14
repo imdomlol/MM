@@ -7,3 +7,7 @@ Misc/mythmagic-crafter-*.json
 .env.*
 .venv
 .venv.*
+
+# recipe data files
+reciperawAUTO.html
+reciperaw.html
