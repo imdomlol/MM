@@ -357,6 +357,23 @@ function getAlwaysPlayerInventoryForMaterial(materialName = "") {
     return Math.max(0, totalQty);
 }
 
+function getAlwaysPlayersWithInventoryForMaterial(materialName = "") {
+    if (!materialName) return [];
+
+    const alwaysPlayers = getPlayersWithBorrowState(borrowStateAlways);
+    if (!alwaysPlayers || alwaysPlayers.length === 0) return [];
+
+    const result = [];
+    for (const playerName of alwaysPlayers) {
+        const availableQty = getPlayerInventoryForMaterial(playerName, materialName);
+        if (Number.isFinite(availableQty) && availableQty > 0) {
+            result.push({ playerName, availableQty });
+        }
+    }
+
+    return result;
+}
+
 function getAskPlayersWithInventoryForMaterial(materialName = "") {
     if (!materialName) return [];
 
@@ -400,156 +417,200 @@ function createAskPickerOverlay(materialName = "", materialsList = null, require
     overlay.setAttribute("role", "dialog");
     overlay.setAttribute("aria-label", `Choose quantities to borrow from players for ${materialName}`);
 
-    const askPlayers = getAskPlayersWithInventoryForMaterial(materialName);
-    const currentSelections = getAskSelectionsForMaterial(materialName) || {};
-    const materialsNeeded = getMaterialListFromSelectedItems(gSelectedItems);
-
-    // Guard: ensure we have valid ask players
-    if (!askPlayers || !Array.isArray(askPlayers) || askPlayers.length === 0) {
-        const errorMsg = document.createElement("div");
-        errorMsg.textContent = "No ask players with inventory for this material.";
-        overlay.appendChild(errorMsg);
-        return overlay;
-    }
-
     const pickerContent = document.createElement("div");
     pickerContent.classList.add("ask-picker-content");
+
+    const askPlayers = getAskPlayersWithInventoryForMaterial(materialName);
+    const alwaysPlayers = getAlwaysPlayersWithInventoryForMaterial(materialName);
+    const currentSelections = getAskSelectionsForMaterial(materialName) || {};
+    const materialsNeeded = getMaterialListFromSelectedItems(gSelectedItems);
 
     const pickerTitle = document.createElement("h3");
     pickerTitle.classList.add("ask-picker-title");
     pickerTitle.textContent = `Get ${materialName} from:`;
     pickerContent.appendChild(pickerTitle);
 
-    const playersList = document.createElement("div");
-    playersList.classList.add("ask-picker-players-list");
+    if (alwaysPlayers.length > 0) {
+        const alwaysHeader = document.createElement("p");
+        alwaysHeader.classList.add("ask-picker-section-title");
+        alwaysHeader.textContent = "Always pulling from:";
+        pickerContent.appendChild(alwaysHeader);
 
-    for (const entry of askPlayers) {
-        if (!entry || !entry.playerName) continue;
+        const alwaysList = document.createElement("div");
+        alwaysList.classList.add("ask-picker-always-list");
 
-        const { playerName, availableQty } = entry;
-        const checkedAvailableQty = normalizeMaterialProgressQuantity(availableQty, 0);
-        if (checkedAvailableQty <= 0) continue;
+        for (const entry of alwaysPlayers) {
+            if (!entry || !entry.playerName) continue;
 
-        const playerRow = document.createElement("div");
-        playerRow.classList.add("ask-picker-player-row");
+            const checkedAvailableQty = normalizeMaterialProgressQuantity(entry.availableQty, 0);
+            if (checkedAvailableQty <= 0) continue;
 
-        const playerLabel = document.createElement("span");
-        playerLabel.classList.add("ask-picker-player-name");
-        playerLabel.textContent = `${playerName} (${checkedAvailableQty} available)`;
+            const alwaysRow = document.createElement("div");
+            alwaysRow.classList.add("ask-picker-player-row", "ask-picker-player-row-readonly");
 
-        const selectedQty = normalizeMaterialProgressQuantity(currentSelections[playerName], 0);
+            const alwaysLabel = document.createElement("span");
+            alwaysLabel.classList.add("ask-picker-player-name");
+            alwaysLabel.textContent = `${entry.playerName} (${checkedAvailableQty} available)`;
 
-        const quantityInput = document.createElement("input");
-        quantityInput.type = "number";
-        quantityInput.min = "0";
-        quantityInput.max = String(checkedAvailableQty);
-        quantityInput.step = "1";
-        quantityInput.inputMode = "numeric";
-        quantityInput.classList.add("ask-picker-input");
-        quantityInput.value = String(selectedQty);
-        quantityInput.setAttribute("aria-label", `Quantity from ${playerName}`);
+            const alwaysBadge = document.createElement("span");
+            alwaysBadge.classList.add("ask-picker-player-badge");
+            alwaysBadge.textContent = "Always";
 
-        playerRow.appendChild(playerLabel);
-        playerRow.appendChild(quantityInput);
-        playersList.appendChild(playerRow);
+            alwaysRow.appendChild(alwaysLabel);
+            alwaysRow.appendChild(alwaysBadge);
+            alwaysList.appendChild(alwaysRow);
+        }
 
-        // Store reference for apply action
-        quantityInput.dataset.playerName = playerName;
-        quantityInput.dataset.availableQty = String(checkedAvailableQty);
+        pickerContent.appendChild(alwaysList);
     }
 
-    pickerContent.appendChild(playersList);
+    let playersList = null;
+    if (askPlayers.length > 0) {
+        const askHeader = document.createElement("p");
+        askHeader.classList.add("ask-picker-section-title");
+        askHeader.textContent = "You can borrow from:";
+        pickerContent.appendChild(askHeader);
 
-    const buttonContainer = document.createElement("div");
-    buttonContainer.classList.add("ask-picker-buttons");
+        playersList = document.createElement("div");
+        playersList.classList.add("ask-picker-players-list");
 
-    const applyButton = document.createElement("button");
-    applyButton.type = "button";
-    applyButton.classList.add(elementClassButton, "ask-picker-apply");
-    applyButton.textContent = "Apply";
-    applyButton.setAttribute("aria-label", "Apply selected quantities");
+        for (const entry of askPlayers) {
+            if (!entry || !entry.playerName) continue;
 
-    const resetButton = document.createElement("button");
-    resetButton.type = "button";
-    resetButton.classList.add(elementClassButton, "ask-picker-reset");
-    resetButton.textContent = "Reset";
-    resetButton.setAttribute("aria-label", "Clear all selections");
+            const { playerName, availableQty } = entry;
+            const checkedAvailableQty = normalizeMaterialProgressQuantity(availableQty, 0);
+            if (checkedAvailableQty <= 0) continue;
 
-    const autoButton = document.createElement("button");
-    autoButton.type = "button";
-    autoButton.classList.add(elementClassButton, "ask-picker-auto");
-    autoButton.textContent = "Auto";
-    autoButton.setAttribute("aria-label", "Automatically choose quantities");
+            const playerRow = document.createElement("div");
+            playerRow.classList.add("ask-picker-player-row");
 
-    buttonContainer.appendChild(applyButton);
-    buttonContainer.appendChild(autoButton);
-    buttonContainer.appendChild(resetButton);
-    pickerContent.appendChild(buttonContainer);
+            const playerLabel = document.createElement("span");
+            playerLabel.classList.add("ask-picker-player-name");
+            playerLabel.textContent = `${playerName} (${checkedAvailableQty} available)`;
+
+            const selectedQty = normalizeMaterialProgressQuantity(currentSelections[playerName], 0);
+
+            const quantityInput = document.createElement("input");
+            quantityInput.type = "number";
+            quantityInput.min = "0";
+            quantityInput.max = String(checkedAvailableQty);
+            quantityInput.step = "1";
+            quantityInput.inputMode = "numeric";
+            quantityInput.classList.add("ask-picker-input");
+            quantityInput.value = String(selectedQty);
+            quantityInput.setAttribute("aria-label", `Quantity from ${playerName}`);
+
+            playerRow.appendChild(playerLabel);
+            playerRow.appendChild(quantityInput);
+            playersList.appendChild(playerRow);
+
+            // Store reference for apply action
+            quantityInput.dataset.playerName = playerName;
+            quantityInput.dataset.availableQty = String(checkedAvailableQty);
+        }
+
+        pickerContent.appendChild(playersList);
+    }
+
+    if (alwaysPlayers.length === 0 && askPlayers.length === 0) {
+        const emptyState = document.createElement("p");
+        emptyState.classList.add("ask-picker-empty-state");
+        emptyState.textContent = "No inventories are available to pull from.";
+        pickerContent.appendChild(emptyState);
+    }
+
+    if (playersList) {
+        const buttonContainer = document.createElement("div");
+        buttonContainer.classList.add("ask-picker-buttons");
+
+        const applyButton = document.createElement("button");
+        applyButton.type = "button";
+        applyButton.classList.add(elementClassButton, "ask-picker-apply");
+        applyButton.textContent = "Apply";
+        applyButton.setAttribute("aria-label", "Apply selected quantities");
+
+        const resetButton = document.createElement("button");
+        resetButton.type = "button";
+        resetButton.classList.add(elementClassButton, "ask-picker-reset");
+        resetButton.textContent = "Reset";
+        resetButton.setAttribute("aria-label", "Clear all selections");
+
+        const autoButton = document.createElement("button");
+        autoButton.type = "button";
+        autoButton.classList.add(elementClassButton, "ask-picker-auto");
+        autoButton.textContent = "Auto";
+        autoButton.setAttribute("aria-label", "Automatically choose quantities");
+
+        buttonContainer.appendChild(applyButton);
+        buttonContainer.appendChild(autoButton);
+        buttonContainer.appendChild(resetButton);
+        pickerContent.appendChild(buttonContainer);
+
+        // Event handlers
+        applyButton.addEventListener("click", () => {
+            const previousEffectiveQty = getEffectiveMaterialHaveQuantity(materialName);
+            const inputs = playersList.querySelectorAll("input");
+            for (const input of inputs) {
+                const playerName = input.dataset.playerName;
+                if (!playerName) continue;
+
+                const selectedQty = normalizeMaterialProgressQuantity(input.value, 0);
+                const maxQty = normalizeMaterialProgressQuantity(input.dataset.availableQty, 0);
+
+                // Clamp to available quantity
+                const clampedQty = Math.min(Math.max(selectedQty, 0), maxQty);
+                setAskSelectionForMaterial(materialName, playerName, clampedQty);
+            }
+
+            const nextEffectiveQty = getEffectiveMaterialHaveQuantity(materialName);
+            const quantityDelta = nextEffectiveQty - previousEffectiveQty;
+            if (quantityDelta !== 0) {
+                propagateMaterialCompletionToChildren(materialName, quantityDelta, materialsNeeded);
+            }
+
+            // Close picker and refresh materials
+            overlay.remove();
+            if (materialsList) {
+                populateMaterialsList(materialsList, true);
+                initCraftingTimeCard();
+            }
+        });
+
+        autoButton.addEventListener("click", () => {
+            applyAutoAskSelectionForMaterial(materialName, requiredQty, materialsNeeded);
+
+            overlay.remove();
+            if (materialsList) {
+                populateMaterialsList(materialsList, true);
+                initCraftingTimeCard();
+            }
+        });
+
+        resetButton.addEventListener("click", () => {
+            const previousEffectiveQty = getEffectiveMaterialHaveQuantity(materialName);
+            const inputs = playersList.querySelectorAll("input");
+            for (const input of inputs) {
+                const playerName = input.dataset.playerName;
+                if (!playerName) continue;
+
+                setAskSelectionForMaterial(materialName, playerName, 0);
+            }
+
+            const nextEffectiveQty = getEffectiveMaterialHaveQuantity(materialName);
+            const quantityDelta = nextEffectiveQty - previousEffectiveQty;
+            if (quantityDelta !== 0) {
+                propagateMaterialCompletionToChildren(materialName, quantityDelta, materialsNeeded);
+            }
+
+            overlay.remove();
+            if (materialsList) {
+                populateMaterialsList(materialsList, true);
+                initCraftingTimeCard();
+            }
+        });
+    }
 
     overlay.appendChild(pickerContent);
-
-    // Event handlers
-    applyButton.addEventListener("click", () => {
-        const previousEffectiveQty = getEffectiveMaterialHaveQuantity(materialName);
-        const inputs = playersList.querySelectorAll("input");
-        for (const input of inputs) {
-            const playerName = input.dataset.playerName;
-            if (!playerName) continue;
-
-            const selectedQty = normalizeMaterialProgressQuantity(input.value, 0);
-            const maxQty = normalizeMaterialProgressQuantity(input.dataset.availableQty, 0);
-            
-            // Clamp to available quantity
-            const clampedQty = Math.min(Math.max(selectedQty, 0), maxQty);
-            setAskSelectionForMaterial(materialName, playerName, clampedQty);
-        }
-
-        const nextEffectiveQty = getEffectiveMaterialHaveQuantity(materialName);
-        const quantityDelta = nextEffectiveQty - previousEffectiveQty;
-        if (quantityDelta !== 0) {
-            propagateMaterialCompletionToChildren(materialName, quantityDelta, materialsNeeded);
-        }
-
-        // Close picker and refresh materials
-        overlay.remove();
-        if (materialsList) {
-            populateMaterialsList(materialsList, true);
-            initCraftingTimeCard();
-        }
-    });
-
-    autoButton.addEventListener("click", () => {
-        applyAutoAskSelectionForMaterial(materialName, requiredQty, materialsNeeded);
-
-        overlay.remove();
-        if (materialsList) {
-            populateMaterialsList(materialsList, true);
-            initCraftingTimeCard();
-        }
-    });
-
-    resetButton.addEventListener("click", () => {
-        const previousEffectiveQty = getEffectiveMaterialHaveQuantity(materialName);
-        const inputs = playersList.querySelectorAll("input");
-        for (const input of inputs) {
-            const playerName = input.dataset.playerName;
-            if (!playerName) continue;
-
-            setAskSelectionForMaterial(materialName, playerName, 0);
-        }
-
-        const nextEffectiveQty = getEffectiveMaterialHaveQuantity(materialName);
-        const quantityDelta = nextEffectiveQty - previousEffectiveQty;
-        if (quantityDelta !== 0) {
-            propagateMaterialCompletionToChildren(materialName, quantityDelta, materialsNeeded);
-        }
-
-        overlay.remove();
-        if (materialsList) {
-            populateMaterialsList(materialsList, true);
-            initCraftingTimeCard();
-        }
-    });
 
     // Close on outside click
     overlay.addEventListener("click", (event) => {
@@ -2750,6 +2811,10 @@ function populateMaterialsList(materialsList = document.getElementById(pageCraft
 
         const askPlayersWithInventory = getAskPlayersWithInventoryForMaterial(materialName);
         const hasAskPlayers = askPlayersWithInventory.length > 0;
+        const baseHaveQty = normalizeMaterialProgressQuantity(getMaterialProgress(materialName).haveQty, 0)
+            + normalizeMaterialProgressQuantity(getAlwaysPlayerInventoryForMaterial(materialName), 0);
+        const needsAskToMeetRequirement = baseHaveQty < qty;
+        const canAskForNeededMaterial = hasAskPlayers && needsAskToMeetRequirement;
 
         const haveWrapper = document.createElement("div");
         haveWrapper.classList.add("materials-have-wrapper");
@@ -2763,39 +2828,36 @@ function populateMaterialsList(materialsList = document.getElementById(pageCraft
             materialRow.classList.add("is-checked");
         }
 
-        if (hasAskPlayers) {
+        if (canAskForNeededMaterial) {
             materialRow.classList.add("has-ask-available");
         }
 
         materialRow.appendChild(nameSpan);
         materialRow.appendChild(haveWrapper);
 
-        if (hasAskPlayers) {
-            materialRow.classList.add("has-ask-available");
-            materialRow.tabIndex = 0;
-            materialRow.setAttribute("role", "button");
-            materialRow.setAttribute("aria-label", `Ask players for ${materialName}`);
+        materialRow.tabIndex = 0;
+        materialRow.setAttribute("role", "button");
+        materialRow.setAttribute("aria-label", `View inventory sources for ${materialName}`);
 
-            const openAskPicker = (event) => {
-                if (event) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                }
+        const openAskPicker = (event) => {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
 
-                const picker = createAskPickerOverlay(materialName, materialsList, qty);
-                document.body.appendChild(picker);
-            };
+            const picker = createAskPickerOverlay(materialName, materialsList, qty);
+            document.body.appendChild(picker);
+        };
 
-            materialRow.addEventListener("click", (event) => {
+        materialRow.addEventListener("click", (event) => {
+            openAskPicker(event);
+        });
+
+        materialRow.addEventListener("keydown", (event) => {
+            if (event.key === "Enter" || event.key === " ") {
                 openAskPicker(event);
-            });
-
-            materialRow.addEventListener("keydown", (event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                    openAskPicker(event);
-                }
-            });
-        }
+            }
+        });
 
         listItem.appendChild(materialRow);
         materialsList.appendChild(listItem);

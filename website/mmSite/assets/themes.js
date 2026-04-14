@@ -63,9 +63,11 @@ function initThemes() {
     const savedPlayer = getSavedPlayer();
     const savedOwner = getSecretOwner(getSavedTheme());
 
-    const preferredPlayer = names.includes(savedOwner)
-      ? savedOwner
-      : (names.includes(savedPlayer) ? savedPlayer : (names[0] || ""));
+    const preferredPlayer = names.includes(previousValue)
+      ? previousValue
+      : (names.includes(savedPlayer)
+        ? savedPlayer
+        : (names.includes(savedOwner) ? savedOwner : (names[0] || "")));
 
     playerSelect.innerHTML = "";
     for (const name of names) {

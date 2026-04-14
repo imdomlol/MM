@@ -11,7 +11,7 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from mmdb import get_connection, read_items_payload, replace_player_inventories_payload
+from mmdb import get_connection, read_items_payload, read_player_inventories_payload, replace_player_inventories_payload
 
 # Constants for item headers
 ITEM_HEADERS = {
@@ -75,6 +75,8 @@ def main():
     ap = argparse.ArgumentParser(description="Sync player inventories from Google Sheets into SQLite")
     ap.add_argument("--db", default=str(REPO_ROOT / "website" / "mmSite" / "data" / "mm.db"))
     ap.add_argument("--force", "-f", action="store_true", help="Refetch even if cache is fresh")
+    ap.add_argument("--sheet-id", default="", help="Refresh a single player sheet by sheet ID")
+    ap.add_argument("--player-name", default="", help="Optional selected player name for logs")
     ap.add_argument(
         "--max-age",
         type=int,
@@ -85,6 +87,8 @@ def main():
     args = ap.parse_args()
 
     db_path = Path(args.db)
+    requested_sheet_id = str(args.sheet_id or "").strip()
+    requested_player_name = str(args.player_name or "").strip()
     cache_dir = REPO_ROOT / ".build_cache"
     cache_file = cache_dir / "inventories_cache.json"
 
@@ -112,8 +116,10 @@ def main():
 
     gc = gspread.authorize(creds)
 
+    target_sheet_ids = [requested_sheet_id] if requested_sheet_id else sorted(SHEET_IDS)
+
     players = []
-    for sheetId in SHEET_IDS:
+    for sheetId in target_sheet_ids:
         sheet = gc.open_by_key(sheetId)
         worksheet = sheet.sheet1
 
@@ -191,9 +197,29 @@ def main():
 
     enrich_item_ids(players, db_path)
 
+    output_players = players
+    if requested_sheet_id:
+        conn = get_connection(db_path)
+        try:
+            existing_payload = read_player_inventories_payload(conn)
+        finally:
+            conn.close()
+
+        existing_players = existing_payload.get("players", []) if isinstance(existing_payload, dict) else []
+        merged_players_by_sheet = {
+            str(player.get("sheetId") or ""): player
+            for player in existing_players
+            if str(player.get("sheetId") or "")
+        }
+        for refreshed_player in players:
+            refreshed_sheet_id = str(refreshed_player.get("sheetId") or "")
+            if refreshed_sheet_id:
+                merged_players_by_sheet[refreshed_sheet_id] = refreshed_player
+        output_players = list(merged_players_by_sheet.values())
+
     output = {
         "last_updated": datetime.now(timezone.utc).isoformat(),
-        "players": players,
+        "players": output_players,
     }
 
     fetched_at = datetime.now(timezone.utc).isoformat()
@@ -205,7 +231,15 @@ def main():
         encoding="utf-8",
     )
 
-    print(f"Wrote {sum(len(player['items']) for player in players)} items to SQLite inventories")
+    total_item_count = sum(len(player.get("items", [])) for player in output_players)
+    if requested_sheet_id:
+        player_label = requested_player_name or next(
+            (player.get("name") for player in players if player.get("sheetId") == requested_sheet_id),
+            "selected player",
+        )
+        print(f"Refreshed inventory for {player_label} ({requested_sheet_id}); wrote {total_item_count} total items to SQLite inventories")
+    else:
+        print(f"Wrote {total_item_count} items to SQLite inventories")
 
 
 if __name__ == "__main__":

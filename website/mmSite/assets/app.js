@@ -15,6 +15,10 @@ let gEqualizeCardSizesFunction = null;
 let gCurrentRecipeDetailSelection = null;
 let gActiveCategories = new Set(); // empty + !gAllCategoriesOff means all enabled categories visible
 let gAllCategoriesOff = false;
+let gActiveRecipeCategories = new Set(); // empty + !gAllRecipeCategoriesOff means all visible
+let gAllRecipeCategoriesOff = false;
+let gInventoriesLastUpdated = "";
+let gInventoryLastSyncedByPlayer = {};
 const RECIPES_FILEPATH = "/api/recipes"
 const ITEMS_FILEPATH = "/api/items"
 const INVENTORIES_FILEPATH = "/api/player-inventories"
@@ -22,6 +26,57 @@ const RECIPES_FALLBACK_FILEPATH = "./data/recipes.json"
 const ITEMS_FALLBACK_FILEPATH = "./data/items.json"
 const INVENTORIES_FALLBACK_FILEPATH = "./data/playerInventories.json"
 const USER_MARKS_STORAGE_KEY = "mm_user_marks_v1"
+const INVENTORY_LAST_SYNC_BY_PLAYER_STORAGE_KEY = "mm_inventory_last_sync_by_player_v1"
+
+function loadInventoryLastSyncedByPlayer() {
+    try {
+        const parsed = JSON.parse(localStorage.getItem(INVENTORY_LAST_SYNC_BY_PLAYER_STORAGE_KEY) || "{}");
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+            gInventoryLastSyncedByPlayer = {};
+            return;
+        }
+
+        const output = {};
+        for (const [playerName, timestamp] of Object.entries(parsed)) {
+            if (!playerName || typeof timestamp !== "string") continue;
+            output[playerName] = timestamp;
+        }
+        gInventoryLastSyncedByPlayer = output;
+    } catch {
+        gInventoryLastSyncedByPlayer = {};
+    }
+}
+
+function saveInventoryLastSyncedByPlayer() {
+    localStorage.setItem(INVENTORY_LAST_SYNC_BY_PLAYER_STORAGE_KEY, JSON.stringify(gInventoryLastSyncedByPlayer));
+}
+
+function seedInventoryLastSyncedForPlayers(players = [], fallbackTimestamp = "") {
+    const timestamp = typeof fallbackTimestamp === "string" ? fallbackTimestamp : "";
+    for (const player of players || []) {
+        const playerName = String(player?.name || "").trim();
+        if (!playerName) continue;
+        if (!gInventoryLastSyncedByPlayer[playerName] && timestamp) {
+            gInventoryLastSyncedByPlayer[playerName] = timestamp;
+        }
+    }
+    saveInventoryLastSyncedByPlayer();
+}
+
+function updateInventoryLastSyncedLabel() {
+    const syncedLabel = document.getElementById("inventoryLastSynced");
+    if (!syncedLabel) return;
+
+    const selectedPlayerName = getSelectedPlayerName();
+    const selectedPlayerTimestamp = selectedPlayerName ? gInventoryLastSyncedByPlayer[selectedPlayerName] : "";
+    const timestamp = selectedPlayerTimestamp || gInventoriesLastUpdated;
+    if (!timestamp) {
+        syncedLabel.textContent = "";
+        return;
+    }
+
+    syncedLabel.textContent = "Synced " + new Date(timestamp).toLocaleTimeString();
+}
 
 function createDebouncedResizeHandler() {
     let resizeTimeout = null;
@@ -171,18 +226,125 @@ function sortRecipes(recipes, mode, customProperty = "") {
 
 function initRecipesPage() {
     const term = document.getElementById("search").value;
-    const category = document.getElementById("category").value;
     const mode = document.getElementById("sort").value;
 
     let result = gAllRecipes.length > 0 ? gAllRecipes : [];
     result = filterBySearch(result, term);
     result = Array.from(new Map(result.map(item => [item.name, item])).values());
-    result = filterByDropdown(result, category);
-    result = sortRecipes(result, mode);
 
-    let contentId = "allRecipes"
-    let contentProperty = "name"
-    renderHyperlinkList(result, document.getElementById(contentId), contentProperty);
+    if (gAllRecipeCategoriesOff) {
+        result = [];
+    } else if (gActiveRecipeCategories.size > 0) {
+        result = result.filter(r => gActiveRecipeCategories.has(r.category));
+    }
+
+    result = sortRecipes(result, mode);
+    renderHyperlinkList(result, document.getElementById("allRecipes"), "name");
+}
+
+function getAllRecipeCategories() {
+    return [...new Set(gAllRecipes.map(r => r.category).filter(Boolean))].sort();
+}
+
+function buildRecipeCategoryPills() {
+    const container = document.getElementById("recipe-category-pills");
+    if (!container) return;
+    container.innerHTML = "";
+
+    const categories = getAllRecipeCategories();
+
+    function isAllOn() {
+        if (gAllRecipeCategoriesOff) return false;
+        if (gActiveRecipeCategories.size === 0) return true;
+        return categories.length > 0 && categories.every(cat => gActiveRecipeCategories.has(cat));
+    }
+
+    function syncAllPill() {
+        const allPill = container.querySelector("[data-category='__all__']");
+        if (!allPill) return;
+        const allOn = isAllOn();
+        allPill.classList.toggle("is-active", allOn);
+        allPill.setAttribute("aria-pressed", allOn ? "true" : "false");
+    }
+
+    function syncIndividualPills() {
+        container.querySelectorAll(".inv-pill:not([data-category='__all__'])").forEach(pill => {
+            const cat = pill.dataset.category;
+            const isActive = !gAllRecipeCategoriesOff && (gActiveRecipeCategories.size === 0 || gActiveRecipeCategories.has(cat));
+            pill.classList.toggle("is-active", isActive);
+            pill.setAttribute("aria-pressed", isActive ? "true" : "false");
+        });
+    }
+
+    const allPill = document.createElement("button");
+    allPill.type = "button";
+    allPill.className = "btn inv-pill";
+    allPill.dataset.category = "__all__";
+    allPill.textContent = "All";
+    allPill.addEventListener("click", () => {
+        if (isAllOn()) {
+            gAllRecipeCategoriesOff = true;
+            gActiveRecipeCategories.clear();
+        } else {
+            gAllRecipeCategoriesOff = false;
+            gActiveRecipeCategories.clear();
+        }
+        syncIndividualPills();
+        syncAllPill();
+        initRecipesPage();
+    });
+    container.appendChild(allPill);
+
+    for (const cat of categories) {
+        const pill = document.createElement("button");
+        pill.type = "button";
+        pill.className = "btn inv-pill";
+        pill.dataset.category = cat;
+        pill.textContent = cat;
+        pill.addEventListener("click", () => {
+            if (gAllRecipeCategoriesOff) {
+                gAllRecipeCategoriesOff = false;
+                gActiveRecipeCategories.clear();
+                gActiveRecipeCategories.add(cat);
+            } else {
+                if (gActiveRecipeCategories.size === 0) {
+                    for (const c of categories) gActiveRecipeCategories.add(c);
+                }
+                if (gActiveRecipeCategories.has(cat)) {
+                    gActiveRecipeCategories.delete(cat);
+                } else {
+                    gActiveRecipeCategories.add(cat);
+                }
+                if (gActiveRecipeCategories.size === 0) {
+                    gAllRecipeCategoriesOff = true;
+                } else if (gActiveRecipeCategories.size === categories.length) {
+                    gAllRecipeCategoriesOff = false;
+                    gActiveRecipeCategories.clear();
+                }
+            }
+            syncIndividualPills();
+            syncAllPill();
+            initRecipesPage();
+        });
+        container.appendChild(pill);
+    }
+
+    syncIndividualPills();
+    syncAllPill();
+}
+
+function toggleRecipeCategoryPanel() {
+    const panel = document.getElementById("recipe-category-panel");
+    const btn = document.getElementById("recipe-filter-toggle");
+    if (!panel) return;
+    const isHidden = panel.hasAttribute("hidden");
+    if (isHidden) {
+        panel.removeAttribute("hidden");
+        if (btn) btn.classList.add("is-active");
+    } else {
+        panel.setAttribute("hidden", "");
+        if (btn) btn.classList.remove("is-active");
+    }
 }
 
 function updateRecipesLastSyncedLabel(lastUpdated) {
@@ -217,7 +379,7 @@ async function refreshRecipesData() {
         gAllItems = itemsData.items || [];
         gRecipesLastUpdated = recipesData.last_updated || "";
 
-        populateDropdownFromList(gAllRecipes);
+        buildRecipeCategoryPills();
         initRecipesPage();
         updateRecipesLastSyncedLabel(gRecipesLastUpdated);
 
@@ -527,6 +689,19 @@ function initRecipeDetailPage() {
                     if (errorEl) errorEl.textContent = "No recipes found.";
                 }
             });
+        } else {
+            // No item owns this recipeId — render directly from the already-loaded recipe list
+            const foundRecipe = gAllRecipes.find(r => r.recipeId === recipeId);
+            if (foundRecipe) {
+                const recipeIndexInput = document.getElementById(pageSearchId);
+                if (recipeIndexInput) recipeIndexInput.value = 1;
+                gCurrentRecipeDetailSelection = { item: null, selectedRecipeId: recipeId };
+                renderRecipeDetail({ ...foundRecipe, relatedRecipes: [] });
+            } else {
+                gCurrentRecipeDetailSelection = null;
+                const errorEl = document.getElementById(pageErrorId);
+                if (errorEl) errorEl.textContent = "Recipe not found.";
+            }
         }
     })
     .catch(err => {
@@ -582,6 +757,14 @@ function getAllInventoryCategories() {
 function getSelectedPlayerName() {
     const dropdown = document.getElementById("playersInventoryDropdown");
     return dropdown ? dropdown.value : "";
+}
+
+function getSelectedPlayerSheetId() {
+    const selectedPlayerName = getSelectedPlayerName();
+    if (!selectedPlayerName) return "";
+
+    const selectedPlayer = (gAllPlayers || []).find(player => player?.name === selectedPlayerName);
+    return selectedPlayer?.sheetId || "";
 }
 
 function getSelectedPlayerInventories() {
@@ -723,6 +906,8 @@ function toggleCategoryPanel() {
 async function refreshInventories() {
     const btn = document.getElementById("refreshInventoryBtn");
     const icon = btn ? btn.querySelector(".refresh-icon") : null;
+    const selectedPlayerName = getSelectedPlayerName();
+    const selectedPlayerSheetId = getSelectedPlayerSheetId();
 
     if (btn) {
         btn.disabled = true;
@@ -730,8 +915,16 @@ async function refreshInventories() {
     }
 
     try {
-        // Trigger Google Sheets sync on the server — this takes 2–5 s
-        const apiResp = await fetch("/api/refresh-inventories", { method: "POST" });
+        // Trigger inventory sync for the selected player when possible.
+        const requestBody = {
+            playerName: selectedPlayerName,
+            sheetId: selectedPlayerSheetId,
+        };
+        const apiResp = await fetch("/api/refresh-inventories", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(requestBody),
+        });
         if (!apiResp.ok) {
             const err = await apiResp.json().catch(() => ({}));
             throw new Error(err.error || `Server returned ${apiResp.status}`);
@@ -752,14 +945,24 @@ async function refreshInventories() {
             populateDropdownFromList(gAllPlayers, "playersInventoryDropdown", "name", 0);
         }
 
+        // Preserve selected character after refresh when it still exists.
+        if (playerDropdown && selectedPlayerName && gAllPlayers.some(player => player?.name === selectedPlayerName)) {
+            playerDropdown.value = selectedPlayerName;
+            localStorage.setItem("mm_selected_player", selectedPlayerName);
+        }
+
         rebuildInventoryCategoryPills();
         initInventoriesListPage();
 
-        // Update last-synced label
-        const syncedLabel = document.getElementById("inventoryLastSynced");
-        if (syncedLabel && data.last_updated) {
-            syncedLabel.textContent = "Synced " + new Date(data.last_updated).toLocaleTimeString();
+        if (data.last_updated) {
+            gInventoriesLastUpdated = data.last_updated;
+            const refreshedPlayerName = selectedPlayerName || getSelectedPlayerName();
+            if (refreshedPlayerName) {
+                gInventoryLastSyncedByPlayer[refreshedPlayerName] = data.last_updated;
+                saveInventoryLastSyncedByPlayer();
+            }
         }
+        updateInventoryLastSyncedLabel();
 
         // Brief success flash on the icon
         if (icon) {
@@ -804,6 +1007,8 @@ function initInventoriesListPage() {
 
 // INITIALIZATION
 document.addEventListener("DOMContentLoaded", () => {
+    loadInventoryLastSyncedByPlayer();
+
     Promise.all([
         fetchJsonWithFallback(RECIPES_FILEPATH, RECIPES_FALLBACK_FILEPATH).then(data => {
             gAllRecipes = extractRecipes(data);
@@ -814,6 +1019,8 @@ document.addEventListener("DOMContentLoaded", () => {
         }),
         fetchJsonWithFallback(INVENTORIES_FILEPATH, INVENTORIES_FALLBACK_FILEPATH).then(data => {
             gAllPlayers = data.players || [];
+            gInventoriesLastUpdated = data.last_updated || "";
+            seedInventoryLastSyncedForPlayers(gAllPlayers, gInventoriesLastUpdated);
         })
     ]).then(() => {
 
@@ -821,16 +1028,15 @@ document.addEventListener("DOMContentLoaded", () => {
         // RECIPES.HTML PAGE
         pageId = "RecipesPage"
         if (document.getElementById(pageId)) {
-            populateDropdownFromList(gAllRecipes);
+            buildRecipeCategoryPills();
             initRecipesPage();
             updateRecipesLastSyncedLabel(gRecipesLastUpdated);
             
             let pageSearchId = "search"
-            let pageDropdownCategoryId = "category"
             let pageDropdownSortId = "sort"
             document.getElementById(pageSearchId).addEventListener("input", initRecipesPage);
-            document.getElementById(pageDropdownCategoryId).addEventListener("change", initRecipesPage);
             document.getElementById(pageDropdownSortId).addEventListener("change", initRecipesPage);
+            document.getElementById("recipe-filter-toggle").addEventListener("click", toggleRecipeCategoryPanel);
             document.getElementById("refreshRecipesBtn").addEventListener("click", refreshRecipesData);
         }
 
@@ -880,10 +1086,12 @@ document.addEventListener("DOMContentLoaded", () => {
             rebuildInventoryCategoryPills();
 
             initInventoriesListPage();
+            updateInventoryLastSyncedLabel();
 
             document.getElementById("playersInventoryDropdown").addEventListener("change", () => {
                 rebuildInventoryCategoryPills();
                 initInventoriesListPage();
+                updateInventoryLastSyncedLabel();
             });
             document.getElementById("inv-filter-toggle").addEventListener("click", toggleCategoryPanel);
             document.getElementById("refreshInventoryBtn").addEventListener("click", refreshInventories);

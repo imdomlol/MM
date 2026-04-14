@@ -13,21 +13,14 @@
     <main class ="page" id="RecipesPage">
       <h1>Recipes</h1>
 
-      <div class="toolbar">
-        <div class="field">
-          <label>Search</label>
+      <div class="toolbar recipes-toolbar">
+        <div class="field recipes-search-field">
+          <label for="search">Search</label>
           <input type="search" id="search" placeholder="Search recipes...">
         </div>
 
         <div class="field">
-          <label>Filter by:</label>
-          <select id="category">
-          <option value="">All categories</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label>Sort:</label>
+          <label for="sort">Sort</label>
           <select id="sort">
             <option value="name_asc">Name (A→Z)</option>
             <option value="name_desc">Name (Z→A)</option>
@@ -36,20 +29,23 @@
           </select>
         </div>
 
-        <div class="field inv-action-field">
-          <label>&nbsp;</label>
-          <button id="refreshRecipesBtn" class="btn refresh-action-btn" type="button" title="Refresh recipes and items from source">
-            <span class="refresh-icon">↻</span> Refresh Data
-          </button>
-        </div>
+        <button id="recipe-filter-toggle" class="btn" type="button">⊞ Filters</button>
+
+        <button id="refreshRecipesBtn" class="btn refresh-action-btn" type="button" title="Refresh recipes and items from source">
+          <span class="refresh-icon">↻</span> Refresh Data
+        </button>
       </div>
 
       <div class="inv-toolbar-meta">
         <span id="recipesLastSynced" class="last-synced"></span>
       </div>
 
-      <div class="card">
-        <ul class="list" id="allRecipes"></ul>
+      <div id="recipe-category-panel" class="inv-category-panel" hidden>
+        <div id="recipe-category-pills" class="inv-pills"></div>
+      </div>
+
+      <div class="card inv-item-card">
+        <ul class="list inv-item-grid" id="allRecipes"></ul>
       </div>
     </main>
 

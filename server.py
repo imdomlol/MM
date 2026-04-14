@@ -15,7 +15,7 @@ Usage:
     python server.py
 """
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 import subprocess
 import sys
 from pathlib import Path
@@ -54,8 +54,18 @@ def get_player_inventories():
 @app.route("/api/refresh-inventories", methods=["POST"])
 def refresh_inventories():
     script = REPO_ROOT / "website" / "mmSite" / "data" / "scripts" / "buildPlayerInventoriesJSON.py"
+    payload = request.get_json(silent=True) or {}
+    selected_sheet_id = str(payload.get("sheetId") or "").strip()
+    selected_player_name = str(payload.get("playerName") or "").strip()
+
+    script_args = [sys.executable, str(script), "--force", "--db", str(DB_PATH)]
+    if selected_sheet_id:
+        script_args.extend(["--sheet-id", selected_sheet_id])
+    if selected_player_name:
+        script_args.extend(["--player-name", selected_player_name])
+
     result = subprocess.run(
-        [sys.executable, str(script), "--force", "--db", str(DB_PATH)],
+        script_args,
         capture_output=True,
         text=True,
         cwd=str(REPO_ROOT),
