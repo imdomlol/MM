@@ -496,6 +496,68 @@ function sortItemsByCategory(players) {
     return players;
 }
 
+async function refreshInventories() {
+    const btn = document.getElementById("refreshInventoryBtn");
+    const icon = btn ? btn.querySelector(".refresh-icon") : null;
+
+    if (btn) {
+        btn.disabled = true;
+        btn.classList.add("is-loading");
+    }
+
+    try {
+        // Trigger Google Sheets sync on the server — this takes 2–5 s
+        const apiResp = await fetch("/api/refresh-inventories", { method: "POST" });
+        if (!apiResp.ok) {
+            const err = await apiResp.json().catch(() => ({}));
+            throw new Error(err.error || `Server returned ${apiResp.status}`);
+        }
+
+        // Re-fetch the freshly written JSON file
+        const data = await fetch(INVENTORIES_FILEPATH + "?t=" + Date.now()).then(r => r.json());
+        gAllPlayers = data.players || [];
+
+        const dropdown = document.getElementById("playersInventoryDropdown");
+        const currentSelection = dropdown ? dropdown.value : "";
+
+        populateDropdownFromList(gAllPlayers, "playersInventoryDropdown", "name", 0);
+
+        if (currentSelection && dropdown) {
+            dropdown.value = currentSelection;
+        }
+
+        initInventoriesListPage();
+
+        // Update last-synced label
+        const syncedLabel = document.getElementById("inventoryLastSynced");
+        if (syncedLabel && data.last_updated) {
+            syncedLabel.textContent = "Synced " + new Date(data.last_updated).toLocaleTimeString();
+        }
+
+        // Brief success flash on the icon
+        if (icon) {
+            btn.classList.remove("is-loading");
+            icon.textContent = "✓";
+            btn.classList.add("is-success");
+            setTimeout(() => {
+                icon.textContent = "↻";
+                btn.classList.remove("is-success");
+            }, 2000);
+        }
+    } catch (e) {
+        console.error("Failed to refresh inventories:", e);
+        if (icon) {
+            icon.textContent = "✗";
+            setTimeout(() => { icon.textContent = "↻"; }, 2000);
+        }
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.classList.remove("is-loading");
+        }
+    }
+}
+
 function initInventoriesListPage(){
     let players = gAllPlayers.length > 0 ? gAllPlayers : [];
     let items = [];
@@ -611,6 +673,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 
             document.getElementById(pageDropdownPlayerId).addEventListener("change", initInventoriesListPage);
             document.getElementById(pageDropdownCategoryId).addEventListener("change", initInventoriesListPage);
+            document.getElementById("refreshInventoryBtn").addEventListener("click", refreshInventories);
         }
 
         // CRAFTING.HTML PAGE

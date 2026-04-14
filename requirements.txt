@@ -1,6 +1,9 @@
 # Core data build scripts
 beautifulsoup4>=4.12.0
 
+# Local dev server
+flask>=3.0.0
+
 # Google Sheets inventory sync
 gspread>=6.0.0
 google-auth>=2.0.0

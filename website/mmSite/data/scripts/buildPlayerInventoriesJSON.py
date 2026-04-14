@@ -1,3 +1,4 @@
+import argparse
 import json
 import os
 from pathlib import Path
@@ -41,6 +42,31 @@ def colLetter(num: int) -> str:
     return result
 
 def main():
+    ap = argparse.ArgumentParser(description="Sync player inventories from Google Sheets")
+    ap.add_argument("--force", "-f", action="store_true", help="Refetch even if cache is fresh")
+    ap.add_argument("--max-age", type=int, default=10, metavar="MINUTES",
+                    help="Use cached data if last fetch was within this many minutes (default: 10)")
+    args = ap.parse_args()
+
+    cache_dir = REPO_ROOT / ".build_cache"
+    cache_file = cache_dir / "inventories_cache.json"
+    out_file = DATA_DIR / "playerInventories.json"
+
+    if not args.force and cache_file.exists():
+        try:
+            cached = json.loads(cache_file.read_text(encoding="utf-8"))
+            fetched_at = datetime.fromisoformat(cached["fetched_at"])
+            age_minutes = (datetime.now(timezone.utc) - fetched_at).total_seconds() / 60
+            if age_minutes < args.max_age:
+                out_file.write_text(
+                    json.dumps(cached["data"], indent=4, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+                print(f"Inventories up to date (cached {age_minutes:.1f}m ago), skipping")
+                return
+        except Exception:
+            pass  # Corrupt or missing cache — fall through to a real fetch
+
     # Load credentials
     credsMatches = sorted(CREDS_DIR.glob("mythmagic-crafter-*.json"))
     if not credsMatches:
@@ -60,39 +86,51 @@ def main():
         sheet = gc.open_by_key(sheetId)
         worksheet = sheet.sheet1
         
-        # Define initial data range
+        # Define data range — use a generous endCol so the sheet can expand freely
+        # without requiring a second fetch. Empty columns cost nothing.
         startCol = 21  # Column U
         rowStart, rowEnd = 18, 63
-        endCol = 100
+        endCol = 300
         invRange = f"{colLetter(startCol)}{rowStart}:{colLetter(endCol)}{rowEnd}"
-        
+
         # Fetch data
         data = worksheet.get(invRange)
-        
-        # Compute maxCols
-        maxCols = max(len(row) for row in data) if data else 0
 
-        if maxCols > endCol - startCol + 1:
-            endCol = startCol + maxCols - 1
-            invRange = f"{colLetter(startCol)}{rowStart}:{colLetter(endCol)}{rowEnd}"
-            data = worksheet.get(invRange)
-        
         playerName = worksheet.get("B3")
-        
-        # Process data: remove empty cells and headers, parse qty+name pairs
+
+        # Process data: iterate fixed-width pairs based on column position.
+        # Preserving column positions (rather than stripping empties) means a
+        # stray cell can corrupt at most the one pair it sits in, not everything
+        # to its right.
         items = []
         for row in data:
-            row = [cell for cell in row if cell]
-            if not row or (len(row) == 1 and row[0] in ITEM_HEADERS):
-                continue
-            
             for i in range(0, len(row) - 1, 2):
-                try:
-                    qty = int(row[i])
-                    itemName = row[i + 1]
-                    items.append({"name": itemName, "qty": qty, "itemId": None})
-                except (ValueError, IndexError):
+                qty_cell = (row[i] or "").strip()
+                name_cell = (row[i + 1] or "").strip()
+
+                # Skip empty pairs
+                if not qty_cell or not name_cell:
                     continue
+
+                # Skip section header labels
+                if name_cell in ITEM_HEADERS or qty_cell in ITEM_HEADERS:
+                    continue
+
+                # qty must be a valid integer
+                try:
+                    qty = int(qty_cell)
+                except ValueError:
+                    continue
+
+                # name must not be purely numeric — guards against stray numbers
+                # landing in the name column
+                try:
+                    int(name_cell)
+                    continue  # it's a number, not an item name
+                except ValueError:
+                    pass
+
+                items.append({"name": name_cell, "qty": qty, "itemId": None})
         
         players.append({"sheetId": sheetId, "name": playerName[0][0] if playerName else "Unknown", "items": items})
     
@@ -114,11 +152,18 @@ def main():
         "last_updated": datetime.now(timezone.utc).isoformat(),
         "players": players,
     }
-    
+
     # Write to file
-    with open(DATA_DIR / "playerInventories.json", "w", encoding="utf-8") as f:
-        json.dump(output, f, indent=4, ensure_ascii=False)
-    
+    out_file.write_text(json.dumps(output, indent=4, ensure_ascii=False), encoding="utf-8")
+
+    # Update cache
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_file.write_text(
+        json.dumps({"fetched_at": datetime.now(timezone.utc).isoformat(), "data": output},
+                   ensure_ascii=False),
+        encoding="utf-8",
+    )
+
     print(f"Wrote {sum(len(player['items']) for player in players)} items to playerInventories.json")
 
 if __name__ == "__main__":

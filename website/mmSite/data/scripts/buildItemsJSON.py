@@ -1,3 +1,5 @@
+import argparse
+import hashlib
 import json
 from pathlib import Path
 
@@ -19,8 +21,19 @@ outputItemIdProperty = 'itemId'
 outputItemRecipeIdProperty = 'recipeIds'
 outputItemRelatedRecipeIdsProperty = 'relatedRecipeIds'
 
-def build_items_json():
-    
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+def build_items_json(force: bool = False):
+    cache_dir = REPO_ROOT / ".build_cache"
+    hash_file = cache_dir / "recipes_json.sha256"
+
+    if not force and outPath.exists() and recipesPath.exists():
+        current_hash = _sha256(recipesPath)
+        if hash_file.exists() and hash_file.read_text().strip() == current_hash:
+            print("items.json up to date, skipping")
+            return
+
     with open(recipesPath, 'r', encoding='utf-8') as f:
         books = json.load(f)
     
@@ -70,8 +83,14 @@ def build_items_json():
     
     with open(outPath, 'w', encoding='utf-8') as f:
         json.dump({'items': itemsList}, f, indent=2)
-    
+
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    hash_file.write_text(_sha256(recipesPath))
+
     print(f"Generated items.json with {len(itemsList)} unique items")
 
 if __name__ == "__main__":
-    build_items_json()
+    ap = argparse.ArgumentParser(description="Build items.json from recipes.json")
+    ap.add_argument("--force", "-f", action="store_true", help="Rebuild even if source is unchanged")
+    args = ap.parse_args()
+    build_items_json(force=args.force)

@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import json
 import re
 import os
@@ -223,15 +224,27 @@ def mergeRecipeDetails(payload: dict, detailsByRecipeId: dict[str, dict]) -> dic
                 recipe.update(detail)
     return payload
 
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Parse reciperaw.html -> recipes.json (books + recipe items)")
     repo_root = Path(__file__).resolve().parents[4]
     ap.add_argument("--input", "-i", default=str(repo_root / "Scrape" / "reciperaw.html"))
     ap.add_argument("--output", "-o", default=str(repo_root / "website" / "mmSite" / "data" / "recipes.json"))
+    ap.add_argument("--force", "-f", action="store_true", help="Rebuild even if source is unchanged")
     args = ap.parse_args()
 
     in_path = Path(args.input)
     out_path = Path(args.output)
+    cache_dir = repo_root / ".build_cache"
+    hash_file = cache_dir / "reciperaw_html.sha256"
+
+    if not args.force and out_path.exists() and in_path.exists():
+        current_hash = _sha256(in_path)
+        if hash_file.exists() and hash_file.read_text().strip() == current_hash:
+            print("recipes.json up to date, skipping")
+            return 0
 
     html = in_path.read_text(encoding="utf-8", errors="replace")
     soup = BeautifulSoup(html, "html.parser")
@@ -257,6 +270,10 @@ def main() -> int:
 
     writeJSON(out_path, payload)
     print(f"Wrote: {out_path}")
+
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    hash_file.write_text(_sha256(in_path))
+
     return 0
 
 if __name__ == "__main__":

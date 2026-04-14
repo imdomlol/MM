@@ -1,4 +1,5 @@
 from bs4 import BeautifulSoup
+import hashlib
 import networkx as nx
 from pyvis.network import Network
 import requests
@@ -6,8 +7,6 @@ from requests.exceptions import RequestException
 import os
 from pathlib import Path
 import webbrowser
-import tkinter as tk
-from tkinter import ttk
 import json
 import math
 
@@ -676,15 +675,30 @@ def fetch_recipe_page_with_selenium(recipe_page_url):
   return html
 
 if __name__ == "__main__":
+    import tkinter as tk
+    from tkinter import ttk
+
     script_dir = Path(__file__).resolve().parent
     local_file_path = script_dir / "reciperaw.html"
     recipe_page_url = "http://173.29.198.65:30000/game"
-    
+
     update = 'TRUE'
 
     if update == 'TRUE':
         try:
             html_content = fetch_recipe_page_with_selenium(recipe_page_url)
+            # Only overwrite reciperaw.html if content has changed
+            new_hash = hashlib.sha256(html_content.encode("utf-8")).hexdigest()
+            old_hash = (
+                hashlib.sha256(local_file_path.read_bytes()).hexdigest()
+                if local_file_path.exists() else None
+            )
+            if new_hash != old_hash:
+                with open(local_file_path, "w", encoding="utf-8") as f:
+                    f.write(html_content)
+                print("Recipe page updated.")
+            else:
+                print("Fetched page matches existing file — no update needed.")
             with open(script_dir / "reciperawAUTO.html", "w", encoding="utf-8") as f:
                 f.write(html_content)
             print("Successfully logged in via Selenium and fetched the recipe page.")
@@ -696,65 +710,64 @@ if __name__ == "__main__":
         print("Update skipped...")
         with open(local_file_path, "r", encoding="utf-8") as f:
             html_content = f.read()
-        
+
     # Continue with your parsing and graph-building logic.
     parsed_recipes, blacklist = parse_mastercrafted_recipes(html_content)
 
     adj_dict = build_crafting_graph(parsed_recipes)
 
-def search_and_open():
-  """Get the item name from the user, build the graph, and open the HTML file."""
-  query_item = entry.get().strip()
-  if not query_item:
-      return  # Do nothing if empty input
-  
-  # Do a case-insensitive search for a matching key in the adjacency dictionary.
-  matched_item = None
-  for key in adj_dict.keys():
-      if key.lower() == query_item.lower():
-          matched_item = key
-          break
+    def search_and_open():
+        """Get the item name from the user, build the graph, and open the HTML file."""
+        query_item = entry.get().strip()
+        if not query_item:
+            return  # Do nothing if empty input
 
-  if matched_item is None:
-      print(f"No recipe found for '{query_item}' (case-insensitive match).")
-      return
-  
-  try:
-      # Build the expanded graph for the item
-      G_expanded, query_node = build_expanded_graph(matched_item, adj_dict, blacklist)
-      # Generate and save the PyVis HTML graph
-      show_graph_in_pyvis(G_expanded, query_node, matched_item, adj_dict)
-      # The output file is named "<matched_item> Graph.html"
-      output_file = matched_item + " Graph.html"
-      # Open the generated HTML file in the default web browser
-      webbrowser.open("file:///" + os.path.abspath(output_file))
-  except Exception as e:
-      print("Error building or opening graph for item:", e)
+        # Do a case-insensitive search for a matching key in the adjacency dictionary.
+        matched_item = None
+        for key in adj_dict.keys():
+            if key.lower() == query_item.lower():
+                matched_item = key
+                break
 
+        if matched_item is None:
+            print(f"No recipe found for '{query_item}' (case-insensitive match).")
+            return
 
-print("Opening GUI...")
+        try:
+            # Build the expanded graph for the item
+            G_expanded, query_node = build_expanded_graph(matched_item, adj_dict, blacklist)
+            # Generate and save the PyVis HTML graph
+            show_graph_in_pyvis(G_expanded, query_node, matched_item, adj_dict)
+            # The output file is named "<matched_item> Graph.html"
+            output_file = matched_item + " Graph.html"
+            # Open the generated HTML file in the default web browser
+            webbrowser.open("file:///" + os.path.abspath(output_file))
+        except Exception as e:
+            print("Error building or opening graph for item:", e)
 
-# Set up the Tkinter GUI
-root = tk.Tk()
-root.title("Item Recipe Search")
+    print("Opening GUI...")
 
-# Create a frame for some padding
-frame = ttk.Frame(root, padding="10 10 10 10")
-frame.grid(column=0, row=0, sticky=(tk.N, tk.W, tk.E, tk.S))
+    # Set up the Tkinter GUI
+    root = tk.Tk()
+    root.title("Item Recipe Search")
 
-# Label and Entry for the item name
-ttk.Label(frame, text="Enter the name of the item:").grid(column=0, row=0, padx=5, pady=5)
-entry = ttk.Entry(frame, width=40)
-entry.grid(column=1, row=0, padx=5, pady=5)
+    # Create a frame for some padding
+    frame = ttk.Frame(root, padding="10 10 10 10")
+    frame.grid(column=0, row=0, sticky=(tk.N, tk.W, tk.E, tk.S))
 
-# Button to trigger the search and open the graph
-search_button = ttk.Button(frame, text="Search", command=search_and_open)
-search_button.grid(column=0, row=1, columnspan=2, padx=5, pady=10)
+    # Label and Entry for the item name
+    ttk.Label(frame, text="Enter the name of the item:").grid(column=0, row=0, padx=5, pady=5)
+    entry = ttk.Entry(frame, width=40)
+    entry.grid(column=1, row=0, padx=5, pady=5)
 
-# Configure grid padding for all children
-for child in frame.winfo_children():
-    child.grid_configure(padx=5, pady=5)
+    # Button to trigger the search and open the graph
+    search_button = ttk.Button(frame, text="Search", command=search_and_open)
+    search_button.grid(column=0, row=1, columnspan=2, padx=5, pady=10)
 
-# Start the Tkinter event loop
-print("Done!")
-root.mainloop()
+    # Configure grid padding for all children
+    for child in frame.winfo_children():
+        child.grid_configure(padx=5, pady=5)
+
+    # Start the Tkinter event loop
+    print("Done!")
+    root.mainloop()

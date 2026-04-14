@@ -16,3 +16,6 @@ Scrape/reciperaw.html
 website/mmSite/data/items.json
 website/mmSite/data/recipes.json
 website/mmSite/data/playerInventories.json
+
+# build cache (local only, not needed in repo)
+.build_cache/
