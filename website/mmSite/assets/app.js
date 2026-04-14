@@ -411,6 +411,80 @@ function getQueryParam(name) {
     return new URLSearchParams(location.search).get(name);
 }
 
+function normalizeEntityId(value) {
+    if (value === null || value === undefined) return "";
+    return String(value).trim().replace(/^Item\./, "");
+}
+
+function entityIdsEqual(left, right) {
+    const a = normalizeEntityId(left);
+    const b = normalizeEntityId(right);
+    if (!a || !b) return false;
+    return a === b;
+}
+
+function getRelatedRecipesForItem(foundItem, normalizedItemId) {
+    const relatedMap = new Map();
+
+    function addRelatedRecipe(recipe) {
+        if (!recipe?.recipeId || relatedMap.has(recipe.recipeId)) return;
+        relatedMap.set(recipe.recipeId, {
+            recipeId: recipe.recipeId,
+            name: recipe.name || "Unknown Recipe",
+        });
+    }
+
+    if (foundItem) {
+        for (const relatedId of (foundItem.relatedRecipeIds || [])) {
+            const recipe = gAllRecipes.find(r => entityIdsEqual(r.recipeId, relatedId));
+            addRelatedRecipe(recipe);
+        }
+    }
+
+    const itemIdForLookup = foundItem?.itemId || normalizedItemId;
+    const itemNameForLookup = (foundItem?.name || "").trim().toLowerCase();
+
+    for (const recipe of gAllRecipes) {
+        const ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients : [];
+        const results = Array.isArray(recipe.results) ? recipe.results : [];
+
+        const matchesById = itemIdForLookup && (
+            ingredients.some(ing => entityIdsEqual(ing.itemId, itemIdForLookup)) ||
+            results.some(result => entityIdsEqual(result.itemId, itemIdForLookup))
+        );
+
+        const matchesByName = itemNameForLookup && (
+            ingredients.some(ing => String(ing.item || "").trim().toLowerCase() === itemNameForLookup) ||
+            results.some(result => String(result.item || "").trim().toLowerCase() === itemNameForLookup)
+        );
+
+        if (matchesById || matchesByName) {
+            addRelatedRecipe(recipe);
+        }
+    }
+
+    return Array.from(relatedMap.values());
+}
+
+function getItemDisplayNameFallback(foundItem, normalizedItemId) {
+    if (foundItem?.name) return foundItem.name;
+
+    if (normalizedItemId) {
+        for (const recipe of gAllRecipes) {
+            const ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients : [];
+            const results = Array.isArray(recipe.results) ? recipe.results : [];
+
+            const ingMatch = ingredients.find(ing => entityIdsEqual(ing.itemId, normalizedItemId));
+            if (ingMatch?.item) return ingMatch.item;
+
+            const resultMatch = results.find(result => entityIdsEqual(result.itemId, normalizedItemId));
+            if (resultMatch?.item) return resultMatch.item;
+        }
+    }
+
+    return normalizedItemId ? `Item ${normalizedItemId}` : "Unknown Item";
+}
+
 function renderRecipeDetail(recipe) {
     const tools = Array.isArray(recipe.tools) ? recipe.tools : [];
     const skills = Array.isArray(recipe.requirements) ? recipe.requirements : [];
@@ -567,10 +641,8 @@ function saveCurrentRecipeToCraftSelection() {
             ? (Array.isArray(selectedItem.recipeIds) ? selectedItem.recipeIds.filter(Boolean) : [selectedRecipeId].filter(Boolean))
             : [selectedRecipeId].filter(Boolean);
         const itemName = selectedItem?.name || selectedRecipe?.name || "Unknown Item";
-        // When no real item is linked, use selectedRecipeId as itemId so the craft page
-        // can look up the mark by ID and display the correct name / enable controls.
-        const itemIdValue = selectedItem?.itemId || selectedRecipeId || "";
-        const key = itemIdValue || itemName.toLowerCase();
+        const itemIdValue = selectedItem?.itemId || selectedRecipe?.itemId || "";
+        const key = itemIdValue || (selectedRecipeId ? `recipe:${selectedRecipeId}` : itemName.toLowerCase());
 
         if (!key) {
             if (errorEl) errorEl.textContent = "Unable to add this item to the crafting list.";
@@ -612,6 +684,8 @@ function saveCurrentRecipeToCraftSelection() {
 function initRecipeDetailPage() {
     const recipeId = getQueryParam("recipeId");
     const itemId = getQueryParam("itemId");
+    const normalizedRecipeId = normalizeEntityId(recipeId);
+    const normalizedItemId = normalizeEntityId(itemId);
 
     window.addEventListener("resize", debouncedResizeHandler);
 
@@ -628,15 +702,11 @@ function initRecipeDetailPage() {
 
     // gAllItems and gAllRecipes are guaranteed populated before this is ever called
     const foundItem = gAllItems.find(i =>
-        (itemId && i.itemId === itemId) ||
-        (recipeId && (i.recipeIds || []).includes(recipeId))
+        (normalizedItemId && entityIdsEqual(i.itemId, normalizedItemId)) ||
+        (normalizedRecipeId && (i.recipeIds || []).some(id => entityIdsEqual(id, normalizedRecipeId)))
     ) || null;
 
-    const relatedRecipes = foundItem
-        ? gAllRecipes
-            .filter(r => (foundItem.relatedRecipeIds || []).includes(r.recipeId))
-            .map(r => ({ recipeId: r.recipeId, name: r.name }))
-        : [];
+    const relatedRecipes = getRelatedRecipesForItem(foundItem, normalizedItemId);
 
     // Collect all recipe variants for this item. Primary path uses recipeIds from /api/items,
     // fallback path matches recipe.itemId to tolerate temporarily stale link tables.
@@ -653,9 +723,46 @@ function initRecipeDetailPage() {
     }
 
     if (itemInfo.length === 0) {
-        const directRecipe = gAllRecipes.find(r => r.recipeId === recipeId);
+        const directRecipe = gAllRecipes.find(r => entityIdsEqual(r.recipeId, normalizedRecipeId));
         if (directRecipe) {
             itemInfo = [{ ...directRecipe, isRecipe: true, relatedRecipes }];
+        }
+    }
+
+    // Fallback when items table is stale/out-of-sync but recipes still contain itemId links.
+    if (itemInfo.length === 0 && normalizedItemId) {
+        itemInfo = gAllRecipes
+            .filter(r => entityIdsEqual(r.itemId, normalizedItemId))
+            .map(r => ({ ...r, isRecipe: true, relatedRecipes }));
+    }
+
+    if (itemInfo.length === 0 && (foundItem || normalizedItemId)) {
+        const itemOnlyName = getItemDisplayNameFallback(foundItem, normalizedItemId);
+        const itemOnlyCategory = foundItem?.category || "Base Material";
+
+        itemInfo = [{
+            name: itemOnlyName,
+            category: itemOnlyCategory,
+            itemId: foundItem?.itemId || normalizedItemId || "",
+            recipeId: "",
+            tools: [],
+            craftingTimeMinutes: null,
+            requirementsText: "",
+            requirements: [],
+            ingredients: [],
+            results: [],
+            relatedRecipes,
+            isRecipe: false,
+        }];
+
+        const errorEl = document.getElementById(pageErrorId);
+        if (errorEl) {
+            errorEl.textContent = "";
+        }
+    } else {
+        const errorEl = document.getElementById(pageErrorId);
+        if (errorEl) {
+            errorEl.textContent = "";
         }
     }
 

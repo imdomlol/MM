@@ -1818,7 +1818,7 @@ function updateItemCard(baseElement, item, recipeId = item.reqRecipeId){
         let qty = material[itemPropertyMaterialsQuantity];
         let textContent = `${materialName}`;
         let subtextContent = `x ${qty}`;
-        let textHref = `${itemPageBaseHref}${material[itemPropertyMaterialsItemId]}`;
+        let textHref = buildRecipeDetailHrefForItem(material[itemPropertyMaterialsItemId]);
         addEntryToList(materialsList, textContent, textHref, "", subtextContent, pageCraftsCardStyleQuantity);
     }
 }
@@ -2242,6 +2242,35 @@ function getRecipeForTreeNode(itemId, preferredRecipeId = "") {
     return gAllRecipes.find(r => r.recipeId === chosenRecipeId) || null;
 }
 
+function buildRecipeDetailHrefForItem(itemId = "", markKey = "") {
+    const normalizedItemId = String(itemId || "").trim();
+    const trackedEntry = markKey ? gTrackedItems[markKey] : null;
+
+    if (normalizedItemId) {
+        const hasItemRecord = gAllItems.some(item => item?.itemId === normalizedItemId);
+        if (hasItemRecord) {
+            return `${itemPageBaseHref}${encodeURIComponent(normalizedItemId)}`;
+        }
+
+        const recipeByOutput = gAllRecipes.find(recipe => recipe?.itemId === normalizedItemId);
+        if (recipeByOutput?.recipeId) {
+            return `${recipePageBaseHref}${encodeURIComponent(recipeByOutput.recipeId)}`;
+        }
+    }
+
+    const preferredRecipeId = trackedEntry?.reqRecipeId
+        || (Array.isArray(trackedEntry?.recipeIds) ? trackedEntry.recipeIds.find(Boolean) : "")
+        || "";
+
+    if (preferredRecipeId) {
+        return `${recipePageBaseHref}${encodeURIComponent(preferredRecipeId)}`;
+    }
+
+    return normalizedItemId
+        ? `${itemPageBaseHref}${encodeURIComponent(normalizedItemId)}`
+        : "";
+}
+
 function buildRecursiveTreeNode(itemId, qty, depth = 0, path = new Set(), parentNodeId = "", nodeIdFactory = null, pathKey = "") {
     const nodeId = nodeIdFactory ? nodeIdFactory(itemId, depth) : `${itemId || "node"}_${depth}`;
     const effectivePathKey = pathKey || `${itemId || "node"}:root`;
@@ -2401,8 +2430,9 @@ function renderSelectedListEntry(selectedListElement, node) {
     itemLink.classList.add(pageCraftsSelectedLabelClass);
     itemLink.classList.add("is-selected");
     itemLink.textContent = node.textContent || "Unknown Item";
-    if (node.itemId) {
-        itemLink.href = `${itemPageBaseHref}${node.itemId}`;
+    const selectedItemHref = buildRecipeDetailHrefForItem(node.itemId, itemMarkKey);
+    if (selectedItemHref) {
+        itemLink.href = selectedItemHref;
     }
 
     if (node.isAutoAdded) {

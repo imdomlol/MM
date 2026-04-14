@@ -13,6 +13,18 @@ const LIST_CONTAINER_SELECTOR = "#allRecipes, #ingredientsList, #resultsList, #r
 const STORAGE_KEY = "mm_user_marks_v1";
 const DEFAULT_MARKS = { };
 
+function normalizeEntityId(value){
+  if (value === null || value === undefined) return "";
+  return String(value).trim().replace(/^Item\./, "");
+}
+
+function entityIdsEqual(left, right){
+  const a = normalizeEntityId(left);
+  const b = normalizeEntityId(right);
+  if (!a || !b) return false;
+  return a === b;
+}
+
 // STORAGE HELPERS
 export function loadMarks(){
   try{
@@ -31,13 +43,13 @@ export function getItemKeyFromInfo(info){
 export function getItemInfo(a){
   let out = {};
   const url = new URL(a.href, window.location.origin);
-  const recipeId = url.searchParams.get("recipeId");
-  const itemId = url.searchParams.get("itemId");
+  const recipeId = normalizeEntityId(url.searchParams.get("recipeId"));
+  const itemId = normalizeEntityId(url.searchParams.get("itemId"));
   const itemName = (a.textContent.trim()).replace(/\s+x\s+\d+$/, "");
 
   // Check if item exists in dictionary, if it does fill information out
   for (const item of gAllItems)
-    if ((item.name == itemName) || (item.itemId == itemId) || ((item.recipeIds).includes(recipeId))){
+    if ((item.name == itemName) || entityIdsEqual(item.itemId, itemId) || ((item.recipeIds || []).some(id => entityIdsEqual(id, recipeId)))){
       out = {
         itemId: item.itemId,
         recipeIds: item.recipeIds,
