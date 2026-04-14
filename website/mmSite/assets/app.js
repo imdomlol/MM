@@ -550,57 +550,27 @@ function renderRecipeDetail(recipe) {
     requestAnimationFrame(equalizeMiddleCardSizes);
 }
 
-function getItemInfo(item){
-    return fetch(RECIPES_FILEPATH)
-        .then(r => {
-            if (!r.ok) throw new Error("HTTP " + r.status);
-            return r.json();
-        })
-        .then(data => {
-            const allRecipes = extractRecipes(data);
-            const foundRecipes = allRecipes.filter(r => (item.recipeIds || []).includes(r.recipeId));
-
-            if (foundRecipes.length > 0) {
-                return foundRecipes.map(recipe => {
-                    const relatedRecipes = allRecipes.filter(r => (item.relatedRecipeIds || []).includes(r.recipeId));
-                    return {
-                        ...recipe,
-                        isRecipe: true,
-                        relatedRecipes: relatedRecipes.map(r => ({ recipeId: r.recipeId, name: r.name }))
-                    };
-                });
-            } else {
-                const relatedRecipes = allRecipes.filter(r => (item.relatedRecipeIds || []).includes(r.recipeId));
-                return [{
-                    name: item.name || "Unknown Item",
-                    itemId: item.itemId || "",
-                    ingredients: [],
-                    results: [],
-                    category: "Base Material",
-                    isRecipe: false,
-                    relatedRecipes: relatedRecipes.map(r => ({ recipeId: r.recipeId, name: r.name }))
-                }];
-            }
-        })
-        .catch(err => {
-            document.getElementById("content").textContent = "Error loading recipe data: " + err.message;
-            throw err;
-        });
-}
 
 function saveCurrentRecipeToCraftSelection() {
     const errorEl = document.getElementById("Error");
 
-    if (!gCurrentRecipeDetailSelection?.item) {
+    if (!gCurrentRecipeDetailSelection?.item && !gCurrentRecipeDetailSelection?.recipe) {
         if (errorEl) errorEl.textContent = "Unable to add item yet. Please wait for the recipe to finish loading.";
         return false;
     }
 
     try {
         const selectedItem = gCurrentRecipeDetailSelection.item;
+        const selectedRecipe = gCurrentRecipeDetailSelection.recipe;
         const selectedRecipeId = gCurrentRecipeDetailSelection.selectedRecipeId;
-        const recipeIds = Array.isArray(selectedItem.recipeIds) ? selectedItem.recipeIds.filter(Boolean) : [];
-        const key = selectedItem.itemId ? `${selectedItem.itemId}` : `${(selectedItem.name || "").toLowerCase()}`;
+        const recipeIds = selectedItem
+            ? (Array.isArray(selectedItem.recipeIds) ? selectedItem.recipeIds.filter(Boolean) : [selectedRecipeId].filter(Boolean))
+            : [selectedRecipeId].filter(Boolean);
+        const itemName = selectedItem?.name || selectedRecipe?.name || "Unknown Item";
+        // When no real item is linked, use selectedRecipeId as itemId so the craft page
+        // can look up the mark by ID and display the correct name / enable controls.
+        const itemIdValue = selectedItem?.itemId || selectedRecipeId || "";
+        const key = itemIdValue || itemName.toLowerCase();
 
         if (!key) {
             if (errorEl) errorEl.textContent = "Unable to add this item to the crafting list.";
@@ -615,14 +585,14 @@ function saveCurrentRecipeToCraftSelection() {
         }
 
         const existingEntry = marks[key] || {};
-        const reqRecipeId = recipeIds.includes(selectedRecipeId) ? selectedRecipeId : (recipeIds[0] || "");
+        const reqRecipeId = recipeIds.includes(selectedRecipeId) ? selectedRecipeId : (recipeIds[0] || selectedRecipeId || "");
         const existingQty = Number(existingEntry.qty);
 
         marks[key] = {
             ...existingEntry,
-            itemId: selectedItem.itemId || "",
+            itemId: itemIdValue,
             recipeIds,
-            textContent: selectedItem.name || existingEntry.textContent || "Unknown Item",
+            textContent: itemName || existingEntry.textContent || "Unknown Item",
             favorited: Boolean(existingEntry.favorited),
             category: existingEntry.category || "",
             selected: true,
@@ -645,8 +615,8 @@ function initRecipeDetailPage() {
 
     window.addEventListener("resize", debouncedResizeHandler);
 
-    let pageErrorId = "Error"
-    let pageSearchId = "currentRecipeIndex"
+    const pageErrorId = "Error";
+    const pageSearchId = "currentRecipeIndex";
     let recipeIndex = (parseInt(document.getElementById(pageSearchId)?.value) - 1) || 0;
 
     if (!recipeId && !itemId) {
@@ -655,60 +625,58 @@ function initRecipeDetailPage() {
         if (errorEl) errorEl.textContent = "No recipeId or itemId provided.";
         return;
     }
-    
-    fetch(ITEMS_FILEPATH)
-    .then(r => {
-        if (!r.ok) throw new Error("HTTP " + r.status);
-        return r.json();
-    })
-    .then(data => {
-        const allItemsData = data.items || [];
-        const foundItem = allItemsData.find(i => i.itemId === itemId || (i.recipeIds || []).includes(recipeId));
-        if (foundItem) {
-            getItemInfo(foundItem)
-            .then(itemInfo => {
-                if (itemInfo.length > 0) {
-                    recipeIndex = recipeIndex % itemInfo.length;
-                    const recipeIndexInput = document.getElementById(pageSearchId);
-                    if (recipeIndexInput) recipeIndexInput.value = (recipeIndex || 0) + 1;
-                    const activeRecipe = itemInfo[recipeIndex] || {};
-                    const activeRecipeId = activeRecipe.recipeId || recipeId || ((foundItem.recipeIds || [])[0] || "");
-                    gCurrentRecipeDetailSelection = {
-                        item: foundItem,
-                        selectedRecipeId: activeRecipeId
-                    };
 
-                    if (itemInfo[recipeIndex].isRecipe) {
-                        renderRecipeDetail(itemInfo[recipeIndex]);
-                    } else {
-                        renderRecipeDetail(itemInfo[recipeIndex]);
-                    }
-                } else {
-                    gCurrentRecipeDetailSelection = null;
-                    const errorEl = document.getElementById(pageErrorId);
-                    if (errorEl) errorEl.textContent = "No recipes found.";
-                }
-            });
-        } else {
-            // No item owns this recipeId — render directly from the already-loaded recipe list
-            const foundRecipe = gAllRecipes.find(r => r.recipeId === recipeId);
-            if (foundRecipe) {
-                const recipeIndexInput = document.getElementById(pageSearchId);
-                if (recipeIndexInput) recipeIndexInput.value = 1;
-                gCurrentRecipeDetailSelection = { item: null, selectedRecipeId: recipeId };
-                renderRecipeDetail({ ...foundRecipe, relatedRecipes: [] });
-            } else {
-                gCurrentRecipeDetailSelection = null;
-                const errorEl = document.getElementById(pageErrorId);
-                if (errorEl) errorEl.textContent = "Recipe not found.";
-            }
+    // gAllItems and gAllRecipes are guaranteed populated before this is ever called
+    const foundItem = gAllItems.find(i =>
+        (itemId && i.itemId === itemId) ||
+        (recipeId && (i.recipeIds || []).includes(recipeId))
+    ) || null;
+
+    const relatedRecipes = foundItem
+        ? gAllRecipes
+            .filter(r => (foundItem.relatedRecipeIds || []).includes(r.recipeId))
+            .map(r => ({ recipeId: r.recipeId, name: r.name }))
+        : [];
+
+    // Collect all recipe variants for this item. Primary path uses recipeIds from /api/items,
+    // fallback path matches recipe.itemId to tolerate temporarily stale link tables.
+    let itemInfo = foundItem
+        ? gAllRecipes
+            .filter(r => (foundItem.recipeIds || []).includes(r.recipeId))
+            .map(r => ({ ...r, isRecipe: true, relatedRecipes }))
+        : [];
+
+    if (foundItem && itemInfo.length === 0 && foundItem.itemId) {
+        itemInfo = gAllRecipes
+            .filter(r => r.itemId === foundItem.itemId)
+            .map(r => ({ ...r, isRecipe: true, relatedRecipes }));
+    }
+
+    if (itemInfo.length === 0) {
+        const directRecipe = gAllRecipes.find(r => r.recipeId === recipeId);
+        if (directRecipe) {
+            itemInfo = [{ ...directRecipe, isRecipe: true, relatedRecipes }];
         }
-    })
-    .catch(err => {
+    }
+
+    if (itemInfo.length === 0) {
         gCurrentRecipeDetailSelection = null;
         const errorEl = document.getElementById(pageErrorId);
-        if (errorEl) errorEl.textContent = "Error loading item data: " + err.message;
-    });
+        if (errorEl) errorEl.textContent = "Recipe not found.";
+        return;
+    }
+
+    recipeIndex = recipeIndex % itemInfo.length;
+    const recipeIndexInput = document.getElementById(pageSearchId);
+    if (recipeIndexInput) recipeIndexInput.value = recipeIndex + 1;
+
+    gCurrentRecipeDetailSelection = {
+        item: foundItem,
+        recipe: itemInfo[recipeIndex],
+        selectedRecipeId: itemInfo[recipeIndex].recipeId || recipeId || ""
+    };
+
+    renderRecipeDetail(itemInfo[recipeIndex]);
 }
 
 // INVENTORIES.HTML PAGE FUNCTIONS (INVENTORY SELECTOR)
@@ -735,7 +703,10 @@ function addCategoryToItems(players) {
         for (const item of player.items){
             const itemData = allItems.find(i => i.itemId === item.itemId);
             if (itemData) {
-                const recipeData = allRecipes.find(r => (itemData.recipeIds || []).includes(r.recipeId));
+                let recipeData = allRecipes.find(r => (itemData.recipeIds || []).includes(r.recipeId));
+                if (!recipeData && itemData.itemId) {
+                    recipeData = allRecipes.find(r => r.itemId === itemData.itemId);
+                }
                 if (recipeData) {
                     item.category = recipeData.category || "Uncategorized";
                 } else {
@@ -989,6 +960,8 @@ async function refreshInventories() {
 }
 
 function initInventoriesListPage() {
+    const term = document.getElementById("inv-search")?.value || "";
+    const mode = document.getElementById("inv-sort")?.value || "name_asc";
     let players = gAllPlayers.length > 0 ? gAllPlayers : [];
 
     // Mutate first so spread copies in getInventories() include .category
@@ -1001,7 +974,18 @@ function initInventoriesListPage() {
         items = items.filter(i => gActiveCategories.has(i.category));
     }
 
-    items.sort((a, b) => a.name.localeCompare(b.name));
+    items = filterBySearch(items, term, "category");
+
+    if (mode === "name_desc") {
+        items.sort((a, b) => (b.name || "").localeCompare(a.name || ""));
+    } else if (mode === "qty_asc") {
+        items.sort((a, b) => (a.qty || 0) - (b.qty || 0) || (a.name || "").localeCompare(b.name || ""));
+    } else if (mode === "qty_desc") {
+        items.sort((a, b) => (b.qty || 0) - (a.qty || 0) || (a.name || "").localeCompare(b.name || ""));
+    } else {
+        items.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    }
+
     renderHyperlinkList(items, document.getElementById("playerInventoryList"), "name", "", true);
 }
 
@@ -1093,6 +1077,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 initInventoriesListPage();
                 updateInventoryLastSyncedLabel();
             });
+            document.getElementById("inv-search")?.addEventListener("input", initInventoriesListPage);
+            document.getElementById("inv-sort")?.addEventListener("change", initInventoriesListPage);
             document.getElementById("inv-filter-toggle").addEventListener("click", toggleCategoryPanel);
             document.getElementById("refreshInventoryBtn").addEventListener("click", refreshInventories);
         }

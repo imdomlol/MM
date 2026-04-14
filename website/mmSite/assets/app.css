@@ -316,10 +316,6 @@
   --borderTopBar: #e69340;
 }
 
-:root:not([data-theme="secret"][data-secret-owner="Z (#10)"]) .bg-video {
-  display: none;
-}
-
 .inventory-subselect {
   min-width: 180px;
   max-width: 100%;
@@ -739,15 +735,51 @@ input, select, button { font: inherit; }
   margin-inline: auto;
 }
 
-/* Recipes page toolbar — full-width, inputs and buttons bottom-aligned */
+/* Recipes page toolbar — compact single-row controls */
 .page > .recipes-toolbar {
-  width: 100%;
+  width: fit-content;
   max-width: min(100%, var(--content-max));
   align-items: flex-end;
+  gap: 10px;
+  padding: 8px;
+  margin-bottom: 8px;
+}
+
+.page > .recipes-toolbar-actions {
+  width: fit-content;
+  max-width: min(100%, var(--content-max));
+  justify-content: flex-start;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  margin-top: 0;
 }
 
 .recipes-toolbar .recipes-search-field {
-  flex: 1 1 180px;
+  flex: 0 1 25%;
+  min-width: 180px;
+  max-width: 320px;
+}
+
+.recipes-toolbar .recipes-sort-field {
+  flex: 0 0 240px;
+  min-width: 220px;
+}
+
+.recipes-toolbar .btn {
+  height: var(--control-height);
+}
+
+.recipes-toolbar-actions .btn {
+  height: var(--control-height);
+}
+
+.recipes-toolbar-actions #refreshRecipesBtn {
+  margin-left: 0;
+  width: var(--control-height);
+  min-width: var(--control-height);
+  padding: 0;
+  gap: 0;
 }
 
 .recipe-toolbar {
@@ -889,6 +921,49 @@ input, select, button { font: inherit; }
   min-width: 180px;
 }
 
+.page > .inv-toolbar {
+  width: fit-content;
+  max-width: min(100%, var(--content-max));
+  align-items: flex-end;
+  gap: 10px;
+  padding: 8px;
+  margin-bottom: 8px;
+}
+
+.page > .inv-toolbar-actions {
+  width: fit-content;
+  max-width: min(100%, var(--content-max));
+  justify-content: flex-start;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  margin-top: 0;
+}
+
+.inv-toolbar .inv-search-field {
+  flex: 0 1 25%;
+  min-width: 180px;
+  max-width: 320px;
+}
+
+.inv-toolbar .inv-sort-field {
+  flex: 0 0 240px;
+  min-width: 220px;
+}
+
+.inv-toolbar-actions #inv-filter-toggle {
+  height: var(--control-height);
+}
+
+.inv-toolbar-actions #refreshInventoryBtn {
+  margin-left: 0;
+  width: var(--control-height);
+  min-width: var(--control-height);
+  height: var(--control-height);
+  padding: 0;
+  gap: 0;
+}
+
 .inv-toolbar-meta {
   width: fit-content;
   max-width: min(100%, var(--panel-max));
@@ -899,6 +974,48 @@ input, select, button { font: inherit; }
 
 @media (max-width: 640px) {
   .field { min-width: 100%; }
+
+  .page > .recipes-toolbar {
+    width: 100%;
+    max-width: min(100%, var(--content-max));
+    align-items: stretch;
+  }
+
+  .page > .recipes-toolbar-actions {
+    width: 100%;
+    max-width: min(100%, var(--content-max));
+    justify-content: flex-start;
+  }
+
+  .recipes-toolbar .recipes-search-field,
+  .recipes-toolbar .recipes-sort-field {
+    flex: 1 1 100%;
+    max-width: none;
+    min-width: 100%;
+  }
+
+  .page > .inv-toolbar {
+    width: 100%;
+    max-width: min(100%, var(--content-max));
+    align-items: stretch;
+  }
+
+  .page > .inv-toolbar-actions {
+    width: 100%;
+    max-width: min(100%, var(--content-max));
+    justify-content: flex-start;
+  }
+
+  .inv-toolbar .inv-search-field,
+  .inv-toolbar .inv-sort-field {
+    flex: 1 1 100%;
+    max-width: none;
+    min-width: 100%;
+  }
+
+  .recipes-toolbar-actions #refreshRecipesBtn {
+    margin-left: 0;
+  }
 
   .topbar-player-field {
     min-width: 180px;
@@ -1131,284 +1248,41 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus {
   outline-offset: 2px;
 }
 
-/* Dark theme color variants for each button */
-
-/* Recipe Hub - Orange/Red */
-.btn--hero:nth-child(1) {
-  border-color: rgba(255, 127, 80, 0.25);
+/* Light theme unified colors */
+:root[data-theme="light"] .btn--hero {
+  border-color: rgba(94, 129, 255, 0.25);
   background: linear-gradient(
     135deg,
-    rgba(255, 127, 80, 0.18) 0%,
-    rgba(255, 127, 80, 0.10) 100%
-  );
-  box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 4px 12px rgba(255, 127, 80, 0.18);
-}
-
-.btn--hero:nth-child(1):hover {
-  border-color: rgba(255, 127, 80, 0.45);
-  background: linear-gradient(
-    135deg,
-    rgba(255, 127, 80, 0.28) 0%,
-    rgba(255, 127, 80, 0.18) 100%
-  );
-  box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    0 8px 16px rgba(255, 127, 80, 0.30);
-}
-
-.btn--hero:nth-child(1):active {
-  box-shadow: 
-    inset 0 2px 4px rgba(0, 0, 0, 0.20),
-    0 2px 8px rgba(255, 127, 80, 0.20);
-}
-
-.btn--hero:nth-child(1):focus-visible {
-  outline: 2px solid rgba(255, 127, 80, 0.60);
-}
-
-/* Inventory Hub - Cyan/Teal */
-.btn--hero:nth-child(2) {
-  border-color: rgba(0, 217, 255, 0.25);
-  background: linear-gradient(
-    135deg,
-    rgba(0, 217, 255, 0.18) 0%,
-    rgba(0, 217, 255, 0.10) 100%
-  );
-  box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 4px 12px rgba(0, 217, 255, 0.18);
-}
-
-.btn--hero:nth-child(2):hover {
-  border-color: rgba(0, 217, 255, 0.45);
-  background: linear-gradient(
-    135deg,
-    rgba(0, 217, 255, 0.28) 0%,
-    rgba(0, 217, 255, 0.18) 100%
-  );
-  box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    0 8px 16px rgba(0, 217, 255, 0.30);
-}
-
-.btn--hero:nth-child(2):active {
-  box-shadow: 
-    inset 0 2px 4px rgba(0, 0, 0, 0.20),
-    0 2px 8px rgba(0, 217, 255, 0.20);
-}
-
-.btn--hero:nth-child(2):focus-visible {
-  outline: 2px solid rgba(0, 217, 255, 0.60);
-}
-
-/* Foundry - Purple/Violet */
-.btn--hero:nth-child(3) {
-  border-color: rgba(168, 85, 247, 0.25);
-  background: linear-gradient(
-    135deg,
-    rgba(168, 85, 247, 0.18) 0%,
-    rgba(168, 85, 247, 0.10) 100%
-  );
-  box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 4px 12px rgba(168, 85, 247, 0.18);
-}
-
-.btn--hero:nth-child(3):hover {
-  border-color: rgba(168, 85, 247, 0.45);
-  background: linear-gradient(
-    135deg,
-    rgba(168, 85, 247, 0.28) 0%,
-    rgba(168, 85, 247, 0.18) 100%
-  );
-  box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    0 8px 16px rgba(168, 85, 247, 0.30);
-}
-
-.btn--hero:nth-child(3):active {
-  box-shadow: 
-    inset 0 2px 4px rgba(0, 0, 0, 0.20),
-    0 2px 8px rgba(168, 85, 247, 0.20);
-}
-
-.btn--hero:nth-child(3):focus-visible {
-  outline: 2px solid rgba(168, 85, 247, 0.60);
-}
-
-/* Crafts Hub - Green */
-.btn--hero:nth-child(4) {
-  border-color: rgba(89, 222, 164, 0.25);
-  background: linear-gradient(
-    135deg,
-    rgba(89, 222, 164, 0.18) 0%,
-    rgba(89, 222, 164, 0.10) 100%
-  );
-  box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 4px 12px rgba(89, 222, 164, 0.18);
-}
-
-.btn--hero:nth-child(4):hover {
-  border-color: rgba(89, 222, 164, 0.45);
-  background: linear-gradient(
-    135deg,
-    rgba(89, 222, 164, 0.28) 0%,
-    rgba(89, 222, 164, 0.18) 100%
-  );
-  box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    0 8px 16px rgba(89, 222, 164, 0.30);
-}
-
-.btn--hero:nth-child(4):active {
-  box-shadow: 
-    inset 0 2px 4px rgba(0, 0, 0, 0.20),
-    0 2px 8px rgba(89, 222, 164, 0.20);
-}
-
-.btn--hero:nth-child(4):focus-visible {
-  outline: 2px solid rgba(89, 222, 164, 0.60);
-}
-
-/* Light theme color variants */
-
-:root[data-theme="light"] .btn--hero:nth-child(1) {
-  border-color: rgba(255, 127, 80, 0.30);
-  background: linear-gradient(
-    135deg,
-    rgba(255, 127, 80, 0.14) 0%,
-    rgba(255, 127, 80, 0.08) 100%
-  );
-  box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 0.40),
-    0 4px 12px rgba(255, 127, 80, 0.10);
-}
-
-:root[data-theme="light"] .btn--hero:nth-child(1):hover {
-  border-color: rgba(255, 127, 80, 0.45);
-  background: linear-gradient(
-    135deg,
-    rgba(255, 127, 80, 0.20) 0%,
-    rgba(255, 127, 80, 0.12) 100%
+    rgba(94, 129, 255, 0.15) 0%,
+    rgba(94, 129, 255, 0.08) 100%
   );
   box-shadow: 
     inset 0 1px 0 rgba(255, 255, 255, 0.50),
-    0 8px 16px rgba(255, 127, 80, 0.14);
+    0 4px 12px rgba(94, 129, 255, 0.12);
+  color: rgba(15, 23, 42, 0.90);
 }
 
-:root[data-theme="light"] .btn--hero:nth-child(1):active {
-  box-shadow: 
-    inset 0 2px 4px rgba(255, 127, 80, 0.15),
-    0 2px 8px rgba(255, 127, 80, 0.10);
-}
-
-:root[data-theme="light"] .btn--hero:nth-child(1):focus-visible {
-  outline: 2px solid rgba(255, 127, 80, 0.50);
-}
-
-:root[data-theme="light"] .btn--hero:nth-child(2) {
-  border-color: rgba(0, 217, 255, 0.30);
+:root[data-theme="light"] .btn--hero:hover {
+  border-color: rgba(94, 129, 255, 0.40);
   background: linear-gradient(
     135deg,
-    rgba(0, 217, 255, 0.14) 0%,
-    rgba(0, 217, 255, 0.08) 100%
+    rgba(94, 129, 255, 0.22) 0%,
+    rgba(94, 129, 255, 0.14) 100%
   );
   box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 0.40),
-    0 4px 12px rgba(0, 217, 255, 0.10);
+    inset 0 1px 0 rgba(255, 255, 255, 0.60),
+    0 8px 16px rgba(94, 129, 255, 0.18);
 }
 
-:root[data-theme="light"] .btn--hero:nth-child(2):hover {
-  border-color: rgba(0, 217, 255, 0.45);
-  background: linear-gradient(
-    135deg,
-    rgba(0, 217, 255, 0.20) 0%,
-    rgba(0, 217, 255, 0.12) 100%
-  );
+:root[data-theme="light"] .btn--hero:active {
   box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 0.50),
-    0 8px 16px rgba(0, 217, 255, 0.14);
+    inset 0 2px 4px rgba(94, 129, 255, 0.15),
+    0 2px 8px rgba(94, 129, 255, 0.12);
 }
 
-:root[data-theme="light"] .btn--hero:nth-child(2):active {
-  box-shadow: 
-    inset 0 2px 4px rgba(0, 217, 255, 0.15),
-    0 2px 8px rgba(0, 217, 255, 0.10);
-}
-
-:root[data-theme="light"] .btn--hero:nth-child(2):focus-visible {
-  outline: 2px solid rgba(0, 217, 255, 0.50);
-}
-
-:root[data-theme="light"] .btn--hero:nth-child(3) {
-  border-color: rgba(168, 85, 247, 0.30);
-  background: linear-gradient(
-    135deg,
-    rgba(168, 85, 247, 0.14) 0%,
-    rgba(168, 85, 247, 0.08) 100%
-  );
-  box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 0.40),
-    0 4px 12px rgba(168, 85, 247, 0.10);
-}
-
-:root[data-theme="light"] .btn--hero:nth-child(3):hover {
-  border-color: rgba(168, 85, 247, 0.45);
-  background: linear-gradient(
-    135deg,
-    rgba(168, 85, 247, 0.20) 0%,
-    rgba(168, 85, 247, 0.12) 100%
-  );
-  box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 0.50),
-    0 8px 16px rgba(168, 85, 247, 0.14);
-}
-
-:root[data-theme="light"] .btn--hero:nth-child(3):active {
-  box-shadow: 
-    inset 0 2px 4px rgba(168, 85, 247, 0.15),
-    0 2px 8px rgba(168, 85, 247, 0.10);
-}
-
-:root[data-theme="light"] .btn--hero:nth-child(3):focus-visible {
-  outline: 2px solid rgba(168, 85, 247, 0.50);
-}
-
-:root[data-theme="light"] .btn--hero:nth-child(4) {
-  border-color: rgba(89, 222, 164, 0.30);
-  background: linear-gradient(
-    135deg,
-    rgba(89, 222, 164, 0.14) 0%,
-    rgba(89, 222, 164, 0.08) 100%
-  );
-  box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 0.40),
-    0 4px 12px rgba(89, 222, 164, 0.10);
-}
-
-:root[data-theme="light"] .btn--hero:nth-child(4):hover {
-  border-color: rgba(89, 222, 164, 0.45);
-  background: linear-gradient(
-    135deg,
-    rgba(89, 222, 164, 0.20) 0%,
-    rgba(89, 222, 164, 0.12) 100%
-  );
-  box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 0.50),
-    0 8px 16px rgba(89, 222, 164, 0.14);
-}
-
-:root[data-theme="light"] .btn--hero:nth-child(4):active {
-  box-shadow: 
-    inset 0 2px 4px rgba(89, 222, 164, 0.15),
-    0 2px 8px rgba(89, 222, 164, 0.10);
-}
-
-:root[data-theme="light"] .btn--hero:nth-child(4):focus-visible {
-  outline: 2px solid rgba(89, 222, 164, 0.50);
+:root[data-theme="light"] .btn--hero:focus-visible {
+  outline: 2px solid rgba(94, 129, 255, 0.50);
+  outline-offset: 2px;
 }
 
 /* Caine theme - Warm Golden colors */
@@ -2053,7 +1927,7 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus {
 
 .selected-item {
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  grid-template-columns: auto auto minmax(0, 1fr);
   align-items: center;
   gap: 0.45rem;
   padding: 0.45rem 0.55rem;
@@ -2065,11 +1939,11 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus {
 }
 
 .selected-item-flat {
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
 }
 
 .selected-item-no-qty {
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
 }
 
 .selected-tree-toggle-button {
@@ -2170,6 +2044,10 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus {
   white-space: nowrap;
 }
 
+#selectedList {
+  padding-right: 1rem;
+}
+
 .selected-qty-control {
   display: inline-flex;
   position: relative;
@@ -2267,6 +2145,40 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus {
   align-items: center;
   justify-content: center;
   white-space: nowrap;
+}
+
+.selected-item-actions {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.26rem;
+  transform: translate(50%, -50%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease, transform 120ms ease;
+  z-index: 3;
+}
+
+.selected-item:hover .selected-item-actions,
+.selected-item:focus-within .selected-item-actions {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(36%, -50%);
+}
+
+.selected-remove-button {
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.22rem;
+  font-size: 0.72rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  color: var(--textRed);
 }
 
 .selected-qty-input::-webkit-outer-spin-button,
@@ -2452,16 +2364,7 @@ a[data-usercategory]::after{
    8) Video
    ========================================================================== */
 
-.bg-video{
-  position: fixed;
-  inset: 0;
-  z-index: -3;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  pointer-events: none;
-  opacity: 0.5
-}
+
 
 /* ==========================================================================
    9) INVENTORIES PAGE — CATEGORY PILLS & MULTI-COLUMN GRID

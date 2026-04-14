@@ -6,9 +6,6 @@
     <link rel="stylesheet" href="./assets/app.css">
   </head>
   <body>
-    <video class="bg-video" autoplay muted loop playsinline disablepictureinpicture controlslist="nodownload noplaybackrate noremoteplayback">
-        <source src="./assets/mp4/dustParticles.mp4" type="video/mp4">
-    </video>
     <div id="siteHeader"></div>
     <main class ="page" id="RecipesPage">
       <h1>Recipes</h1>
@@ -19,7 +16,7 @@
           <input type="search" id="search" placeholder="Search recipes...">
         </div>
 
-        <div class="field">
+        <div class="field recipes-sort-field">
           <label for="sort">Sort</label>
           <select id="sort">
             <option value="name_asc">Name (A→Z)</option>
@@ -28,11 +25,13 @@
             <option value="timer_desc">Crafting Time (High→Low)</option>
           </select>
         </div>
+      </div>
 
-        <button id="recipe-filter-toggle" class="btn" type="button">⊞ Filters</button>
+      <div class="toolbar recipes-toolbar-actions">
+        <button id="recipe-filter-toggle" class="btn" type="button" title="Toggle recipe filters" aria-label="Toggle recipe filters">⊞</button>
 
-        <button id="refreshRecipesBtn" class="btn refresh-action-btn" type="button" title="Refresh recipes and items from source">
-          <span class="refresh-icon">↻</span> Refresh Data
+        <button id="refreshRecipesBtn" class="btn refresh-action-btn" type="button" title="Refresh recipes and items from source" aria-label="Refresh recipes and items from source">
+          <span class="refresh-icon">↻</span>
         </button>
       </div>
 

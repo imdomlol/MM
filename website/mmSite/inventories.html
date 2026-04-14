@@ -6,23 +6,33 @@
         <link rel="stylesheet" href="./assets/app.css">
     </head>
     <body>
-        <video class="bg-video" autoplay muted loop playsinline disablepictureinpicture controlslist="nodownload noplaybackrate noremoteplayback">
-            <source src="./assets/mp4/dustParticles.mp4" type="video/mp4">
-        </video>
         <div id="siteHeader"></div>
         <main class="page">
             <h1>Inventories</h1>
             <div id="inventories"></div>
 
             <div class="toolbar inv-toolbar">
-                <div class="field inv-action-field">
-                    <button id="refreshInventoryBtn" class="btn refresh-action-btn" type="button" title="Refresh inventory from latest data">
-                        <span class="refresh-icon">↻</span> Refresh
-                    </button>
+                <div class="field inv-search-field">
+                    <label for="inv-search">Search</label>
+                    <input type="search" id="inv-search" placeholder="Search inventory...">
                 </div>
-                <div class="field inv-action-field">
-                    <button id="inv-filter-toggle" class="btn" type="button">⊞ Filters</button>
+
+                <div class="field inv-sort-field">
+                    <label for="inv-sort">Sort</label>
+                    <select id="inv-sort">
+                        <option value="name_asc">Name (A→Z)</option>
+                        <option value="name_desc">Name (Z→A)</option>
+                        <option value="qty_desc">Quantity (High→Low)</option>
+                        <option value="qty_asc">Quantity (Low→High)</option>
+                    </select>
                 </div>
+            </div>
+
+            <div class="toolbar inv-toolbar-actions">
+                <button id="inv-filter-toggle" class="btn" type="button" title="Toggle inventory filters" aria-label="Toggle inventory filters">⊞</button>
+                <button id="refreshInventoryBtn" class="btn refresh-action-btn" type="button" title="Refresh inventory from latest data" aria-label="Refresh inventory from latest data">
+                    <span class="refresh-icon">↻</span>
+                </button>
             </div>
 
             <div class="inv-toolbar-meta">

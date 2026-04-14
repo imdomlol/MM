@@ -48,8 +48,8 @@ export function getItemInfo(a){
   // If item does not exist in dictionary, then just fill out it's displayed name
   if (!out.textContent){
     out = {
-        itemId: "",
-        recipeIds: "",
+        itemId: itemId || "",
+        recipeIds: recipeId ? [recipeId] : [],
         textContent: itemName,
     }
   }

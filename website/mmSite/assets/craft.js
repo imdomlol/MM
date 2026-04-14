@@ -93,6 +93,8 @@ const pageCraftsSelectedQuantityHoverButtonClass = "selected-qty-hover-button"
 const pageCraftsSelectedQuantityHoverButtonMinusClass = "is-minus"
 const pageCraftsSelectedQuantityHoverButtonPlusClass = "is-plus"
 const pageCraftsSelectedPinButtonClass = "selected-pin-button"
+const pageCraftsSelectedRemoveButtonClass = "selected-remove-button"
+const pageCraftsSelectedActionsClass = "selected-item-actions"
 
 //SKILLS
 const pageCraftsSkillsTitle = "Skills"
@@ -1214,6 +1216,21 @@ function setSelectedItemQuantity(item, quantity) {
     updateView();
 }
 
+function removeSelectedItemByMarkKey(markKey) {
+    if (!markKey || !gTrackedItems[markKey]) return;
+
+    const trackedEntry = gTrackedItems[markKey];
+    delete trackedEntry[markerPropertySelected];
+    delete trackedEntry.recursiveSource;
+
+    if (!trackedEntry.favorited && !trackedEntry.category && !trackedEntry.selected) {
+        delete gTrackedItems[markKey];
+    }
+
+    saveMarks(gTrackedItems);
+    updateView();
+}
+
 function createPinToggleButton(item, itemMarkKey, options = {}) {
     const isPinned = !!gTrackedItems[itemMarkKey]?.[markerPropertyPinned];
     const pinButton = document.createElement("button");
@@ -1259,6 +1276,31 @@ function createPinToggleButton(item, itemMarkKey, options = {}) {
 
 // CRAFTING.HTML PAGE FUNCTIONS
 // - BUTTON FUNCTIONALITY
+function setupButtonClear(){
+    document.getElementById("testButton").addEventListener("click", () => {
+        const marks = loadMarks();
+        let changed = false;
+
+        for (const key of Object.keys(marks)) {
+            const entry = marks[key];
+            if (entry?.selected) {
+                delete entry.selected;
+                delete entry.recursiveSource;
+                changed = true;
+            }
+            // Remove the entry entirely if nothing worth keeping remains
+            if (!entry.favorited && !entry.category && !entry.selected) {
+                delete marks[key];
+            }
+        }
+
+        if (changed) {
+            saveMarks(marks);
+            updateView();
+        }
+    });
+}
+
 function setupButtonSave(){
     let elementId = ""
     document.getElementById(elementId = "toolbarSave").addEventListener("click", () => {
@@ -1480,8 +1522,14 @@ function addCardSelected(baseElement){
     const cardBase = createCard(baseElement, elementClassCard, pageCraftsCardStyleSelected);
     let elementClass = "", elementId = "", title = "";
 
+    // Keep selected card bounded while allowing list interactions to scroll.
+    cardBase.style.overflowY = "auto";
+    cardBase.style.zIndex = "4";
+
     appendTitle(cardBase, elementClass = elementClassCardTitle, elementId = "", title = pageCraftsSelectedTitle)
-    appendList(cardBase, elementClass = elementClassCardList, elementId = pageCraftsSelectedListId)
+    const selectedList = appendList(cardBase, elementClass = elementClassCardList, elementId = pageCraftsSelectedListId)
+    selectedList.style.maxHeight = "calc(75vh - 3.2rem)";
+    selectedList.style.overflowY = "auto";
 }
 
 function addCardToolbar(baseElement){
@@ -2351,6 +2399,7 @@ function renderSelectedListEntry(selectedListElement, node) {
 
     const itemLink = document.createElement("a");
     itemLink.classList.add(pageCraftsSelectedLabelClass);
+    itemLink.classList.add("is-selected");
     itemLink.textContent = node.textContent || "Unknown Item";
     if (node.itemId) {
         itemLink.href = `${itemPageBaseHref}${node.itemId}`;
@@ -2368,6 +2417,23 @@ function renderSelectedListEntry(selectedListElement, node) {
     }
 
     const showEditableQuantity = !node.isAutoAdded && !!itemMarkKey;
+    const showRemoveButton = !node.isAutoAdded && !!itemMarkKey;
+
+    let removeButton = null;
+    if (showRemoveButton) {
+        removeButton = document.createElement("button");
+        removeButton.classList.add(elementClassButton, pageCraftsSelectedRemoveButtonClass);
+        removeButton.type = "button";
+        removeButton.setAttribute("aria-label", `Remove ${node.textContent || "item"} from selected list`);
+        removeButton.title = "Remove from selected";
+        removeButton.textContent = "✕";
+
+        removeButton.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            removeSelectedItemByMarkKey(itemMarkKey);
+        });
+    }
 
     if (showEditableQuantity) {
         quantityControl = document.createElement("div");
@@ -2441,7 +2507,14 @@ function renderSelectedListEntry(selectedListElement, node) {
         listEntry.appendChild(treeToggleButton);
     }
     listEntry.appendChild(itemLink);
-    listEntry.appendChild(pinButton);
+
+    const actionsContainer = document.createElement("div");
+    actionsContainer.classList.add(pageCraftsSelectedActionsClass);
+    actionsContainer.appendChild(pinButton);
+    if (removeButton) {
+        actionsContainer.appendChild(removeButton);
+    }
+    listEntry.appendChild(actionsContainer);
     selectedListElement.appendChild(listEntry);
 }
 
@@ -2573,7 +2646,26 @@ function populateSelectedList(){
 
         const itemLink = document.createElement("a");
         itemLink.classList.add(pageCraftsSelectedLabelClass);
+        itemLink.classList.add("is-selected");
         itemLink.textContent = item[markerTextContentProperty] || "Unknown Item";
+
+        let removeButton = null;
+        if (!isAutoAdded) {
+            removeButton = document.createElement("button");
+            removeButton.classList.add(elementClassButton, pageCraftsSelectedRemoveButtonClass);
+            removeButton.type = "button";
+            removeButton.setAttribute("aria-label", `Remove ${item[markerTextContentProperty] || "item"} from selected list`);
+            removeButton.title = "Remove from selected";
+            removeButton.textContent = "✕";
+
+            removeButton.addEventListener("click", (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+
+                if (!itemMarkKey) return;
+                removeSelectedItemByMarkKey(itemMarkKey);
+            });
+        }
 
         const quantityInput = document.createElement("input");
         quantityInput.classList.add(pageCraftsSelectedQuantityInputClass);
@@ -2636,7 +2728,14 @@ function populateSelectedList(){
         quantityControl.appendChild(quantityStepper);
         listEntry.appendChild(quantityControl);
         listEntry.appendChild(itemLink);
-        listEntry.appendChild(pinButton);
+
+        const actionsContainer = document.createElement("div");
+        actionsContainer.classList.add(pageCraftsSelectedActionsClass);
+        actionsContainer.appendChild(pinButton);
+        if (removeButton) {
+            actionsContainer.appendChild(removeButton);
+        }
+        listEntry.appendChild(actionsContainer);
         selectedListElement.appendChild(listEntry);
     }
 
@@ -3059,6 +3158,7 @@ export function initCraftPage() {
     addCardTracked(mainGrid)
 
     //Button Functionality Setup
+    setupButtonClear();
     setupButtonSave();
     setupRecursiveToggleButton();
     setupToolbarSettingsMenu();
