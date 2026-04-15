@@ -944,15 +944,18 @@ input, select, button { font: inherit; }
     grid-template-areas:
       "item requirements related"
       "item flow related";
-    align-items: stretch;
+    align-items: start;
     column-gap: 14px;
     row-gap: 12px;
   }
 
   .recipe-stack.recipe-stack-split > #itemDetailsCard {
     grid-area: item;
-    align-self: stretch;
-    height: 100%;
+    align-self: start;
+    height: var(--recipe-side-height, auto);
+    max-height: var(--recipe-side-max-height);
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 
   .recipe-stack.recipe-stack-split > #requirementsCard {
@@ -979,8 +982,11 @@ input, select, button { font: inherit; }
 
   .recipe-stack.recipe-stack-split > #relatedRecipesCard {
     grid-area: related;
-    align-self: stretch;
-    height: 100%;
+    align-self: start;
+    height: var(--recipe-side-height, auto);
+    max-height: var(--recipe-side-max-height);
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 
   .recipe-stack.recipe-stack-split > #itemDetailsCard,
@@ -1616,6 +1622,7 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus {
 .settings-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 

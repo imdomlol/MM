@@ -19,6 +19,7 @@ const pageCraftsId = "craft"
 //BUTTONS
 const toolbarButtonSaveId = "toolbarSave"
 const toolbarButtonRecursiveId = "toolbarRecursive"
+const toolbarButtonHideCompletedRecursiveId = "toolbarHideCompletedRecursive"
 const toolbarButtonSettingsId = "toolbarSettings"
 const toolbarSettingsMenuId = "toolbarSettingsMenu"
 const toolbarSettingsListId = "toolbarSettingsList"
@@ -28,6 +29,7 @@ const skillsChecksStorageKey = "mm_skills_checks_v1"
 const toolsChecksStorageKey = "mm_tools_checks_v1"
 const borrowSettingsStorageKey = "mm_character_borrow_settings_v1"
 const askSelectionsStorageKey = "mm_ask_selections_v1"
+const hideCompletedRecursiveStorageKey = "mm_hide_completed_recursive_v1"
 
 //STYLES
 const pageCraftsCardStyleTracked = "Tracked"
@@ -140,6 +142,8 @@ let gSkillChecksByKey = {};
 let gToolChecksByKey = {};
 let gCharacterBorrowSettings = {};
 let gAskSelectionsByMaterialAndPlayer = {}; // materialKey -> { playerName -> selectedQty }
+let gHideCompletedRecursiveEntries = false;
+let gRecursiveAutoVisibilityByItemId = new Map();
 let fromScratch = false;
 let mainGrid = null;
 let gCraftCardHeightSyncResizeHandler = null;
@@ -213,6 +217,23 @@ function loadAskSelections() {
 
 function saveAskSelections() {
     localStorage.setItem(askSelectionsStorageKey, JSON.stringify(gAskSelectionsByMaterialAndPlayer));
+}
+
+function loadHideCompletedRecursiveSetting() {
+    try {
+        const parsed = JSON.parse(localStorage.getItem(hideCompletedRecursiveStorageKey) || "false");
+        gHideCompletedRecursiveEntries = Boolean(parsed);
+    } catch {
+        gHideCompletedRecursiveEntries = false;
+    }
+}
+
+function saveHideCompletedRecursiveSetting() {
+    localStorage.setItem(hideCompletedRecursiveStorageKey, JSON.stringify(gHideCompletedRecursiveEntries));
+}
+
+function isHideCompletedRecursiveEnabled() {
+    return Boolean(gHideCompletedRecursiveEntries);
 }
 
 function getAskSelectionsForMaterial(materialName = "") {
@@ -884,6 +905,13 @@ function getSelectedItemByMaterialName(materialName = "") {
     }) || null;
 }
 
+function getSelectedItemByItemId(itemId = "") {
+    const normalizedItemId = String(itemId || "").trim();
+    if (!normalizedItemId) return null;
+
+    return gSelectedItems.find(item => String(item?.itemId || "").trim() === normalizedItemId) || null;
+}
+
 function getSelectedItemRecipe(item) {
     if (!item) return null;
 
@@ -1046,7 +1074,11 @@ function rebuildMaterialProgressFromBorrowSources(selectedItems = gSelectedItems
     gMaterialProgressByKey = {};
 
     for (const materialName in materialsNeeded) {
-        const sourceQty = normalizeMaterialProgressQuantity(getDerivedBorrowQuantityForMaterial(materialName), 0);
+        const requiredQty = normalizeMaterialProgressQuantity(materialsNeeded[materialName]?.qty, 0);
+        const sourceQty = Math.min(
+            normalizeMaterialProgressQuantity(getDerivedBorrowQuantityForMaterial(materialName), 0),
+            requiredQty,
+        );
         if (sourceQty <= 0) continue;
 
         propagateMaterialCompletionToChildren(materialName, sourceQty, materialsNeeded);
@@ -1115,27 +1147,51 @@ function getCraftCardByGridArea(gridAreaName) {
 }
 
 function syncCraftSummaryCardHeights() {
+    const selectedCard = getCraftCardByGridArea(pageCraftsCardStyleSelected);
+    const trackedCard = getCraftCardByGridArea(pageCraftsCardStyleTracked);
     const skillsCard = getCraftCardByGridArea(pageCraftsCardStyleSkills);
     const toolsCard = getCraftCardByGridArea(pageCraftsCardStyleTools);
+    const materialsCard = getCraftCardByGridArea(pageCraftsCardStyleMaterials);
+    const craftingTimeCard = getCraftCardByGridArea(pageCraftsCardStyleCraftingTime);
     if (!skillsCard || !toolsCard) return;
 
-    const referenceHeight = Math.max(skillsCard.scrollHeight, toolsCard.scrollHeight);
-    const clampedHeight = Math.max(referenceHeight, craftCardsMinimumHeightPx);
-    const maxHeight = `${clampedHeight}px`;
+    const cardsToReset = [selectedCard, trackedCard, skillsCard, toolsCard, materialsCard, craftingTimeCard];
+    for (const card of cardsToReset) {
+        if (!card) continue;
+        card.style.height = "";
+        card.style.maxHeight = "";
+    }
 
-    const syncedCards = [
-        getCraftCardByGridArea(pageCraftsCardStyleSelected),
-        getCraftCardByGridArea(pageCraftsCardStyleSkills),
-        getCraftCardByGridArea(pageCraftsCardStyleTools),
-        getCraftCardByGridArea(pageCraftsCardStyleTracked),
-        getCraftCardByGridArea(pageCraftsCardStyleMaterials)
+    const referenceHeight = Math.max(skillsCard.scrollHeight, toolsCard.scrollHeight);
+    const summaryRowHeight = Math.max(referenceHeight, craftCardsMinimumHeightPx);
+    const summaryHeightPx = `${summaryRowHeight}px`;
+
+    const summaryCards = [
+        skillsCard,
+        toolsCard,
+        materialsCard
     ];
 
-    for (const card of syncedCards) {
+    for (const card of summaryCards) {
         if (!card) continue;
         card.style.minHeight = `${craftCardsMinimumHeightPx}px`;
-        card.style.height = maxHeight;
-        card.style.maxHeight = maxHeight;
+        card.style.height = summaryHeightPx;
+        card.style.maxHeight = summaryHeightPx;
+    }
+
+    if (!selectedCard || !trackedCard || !craftingTimeCard || !mainGrid) {
+        return;
+    }
+
+    const gridRowGap = Number.parseFloat(getComputedStyle(mainGrid).rowGap || "0") || 0;
+    const craftingRowHeight = craftingTimeCard.scrollHeight;
+    const sideHeight = Math.max(summaryRowHeight + craftingRowHeight + gridRowGap, craftCardsMinimumHeightPx);
+    const sideHeightPx = `${Math.round(sideHeight)}px`;
+
+    for (const card of [selectedCard, trackedCard]) {
+        card.style.minHeight = `${craftCardsMinimumHeightPx}px`;
+        card.style.height = sideHeightPx;
+        card.style.maxHeight = sideHeightPx;
     }
 }
 
@@ -1332,6 +1388,15 @@ function updateRecursiveToggleButtonState() {
     button.classList.toggle("is-active", enabled);
 }
 
+function updateHideCompletedRecursiveToggleButtonState() {
+    const button = document.getElementById(toolbarButtonHideCompletedRecursiveId);
+    if (!button) return;
+
+    const enabled = isHideCompletedRecursiveEnabled();
+    button.textContent = enabled ? "Hide Done Recursives: ON" : "Hide Done Recursives: OFF";
+    button.classList.toggle("is-active", enabled);
+}
+
 function setupRecursiveToggleButton() {
     const button = document.getElementById(toolbarButtonRecursiveId);
     if (!button) return;
@@ -1345,6 +1410,19 @@ function setupRecursiveToggleButton() {
             gSelectedTreeCollapsedKeys.clear();
             saveSelectedTreeCollapsedKeys();
         }
+        updateView();
+    });
+}
+
+function setupHideCompletedRecursiveToggleButton() {
+    const button = document.getElementById(toolbarButtonHideCompletedRecursiveId);
+    if (!button) return;
+
+    updateHideCompletedRecursiveToggleButtonState();
+
+    button.addEventListener("click", () => {
+        gHideCompletedRecursiveEntries = !isHideCompletedRecursiveEnabled();
+        saveHideCompletedRecursiveSetting();
         updateView();
     });
 }
@@ -1499,12 +1577,12 @@ function addGridBase(baseElement, elementClass = elementClassGrid, elementId = "
 
     //Arrange Base Grid
     mainGrid.style.gridTemplateAreas = `
-    "Selected Toolbar Toolbar Toolbar Tracked"
+    ". Toolbar Toolbar Toolbar ."
+    "Selected CraftingTime CraftingTime CraftingTime Tracked"
     "Selected Skills Tools Materials Tracked"
-    "Selected CraftingTimeSpacerLeft CraftingTime CraftingTimeSpacerRight Tracked"
     `;
     mainGrid.style.gridTemplateColumns = "1fr 1fr 1fr 1fr 1fr";
-    mainGrid.style.gridTemplateRows = "5rem auto auto";
+    mainGrid.style.gridTemplateRows = "auto auto auto";
     mainGrid.style.gridAutoRows = "auto";
     mainGrid.style.alignItems = "start";
     mainGrid.style.overflowY = "auto";
@@ -1541,7 +1619,13 @@ function addCardToolbar(baseElement){
     cardBase.style.overflowY = "";
     cardBase.style.display = "flex";
     cardBase.style.alignItems = "center";
+    cardBase.style.width = "fit-content";
+    cardBase.style.maxWidth = "max-content";
+    cardBase.style.justifySelf = "center";
+    cardBase.style.margin = "0 auto";
     cardBase.style.gap = "0.5rem";
+    cardBase.style.padding = "10px 14px";
+    cardBase.style.boxShadow = "0 10px 28px rgba(0, 0, 0, 0.25)";
     let elementClass = "", elementId = "", elementText = "", elementHref;
 
     appendButton(cardBase, elementClass = elementClassButton, elementId = "testButton", elementText = "Clear")
@@ -1570,11 +1654,12 @@ function addCardToolbar(baseElement){
 
     const toggleSectionHint = document.createElement("p");
     toggleSectionHint.classList.add("settings-hint");
-    toggleSectionHint.textContent = "When enabled, recursive mode will automatically add all sub-recipes of a manually selected recipe";
+    toggleSectionHint.textContent = "Configure recursive auto-add and whether completed recursive entries stay visible in Selected and Materials.";
 
     const toggleSectionActions = document.createElement("div");
     toggleSectionActions.classList.add("settings-actions");
     appendButton(toggleSectionActions, elementClassButton, toolbarButtonRecursiveId, "Recursive: OFF");
+    appendButton(toggleSectionActions, elementClassButton, toolbarButtonHideCompletedRecursiveId, "Hide Done Recursives: OFF");
 
     toggleSection.appendChild(toggleSectionTitle);
     toggleSection.appendChild(toggleSectionHint);
@@ -1617,11 +1702,31 @@ function addCardToolbar(baseElement){
 function addCardCraftingTime(baseElement){
     const cardBase = createCard(baseElement, elementClassCard, pageCraftsCardStyleCraftingTime);
     cardBase.style.overflowY = "";
+    cardBase.style.display = "flex";
+    cardBase.style.alignItems = "center";
+    cardBase.style.justifyContent = "center";
+    cardBase.style.flexWrap = "wrap";
+    cardBase.style.columnGap = "16px";
+    cardBase.style.rowGap = "4px";
+    cardBase.style.padding = "8px 12px";
     let elementClass = "", elementId = "", title = "", isSubtitle = true;
 
     appendTitle(cardBase, elementClass = elementClassCardTitle, elementId = "", title = pageCraftsCraftingTimeTitle)
     appendTitle(cardBase, elementClass = elementClassCardSubtitle, elementId = pageCraftsCraftingTimeSubtitleId, title = "Total: x minute(s)", isSubtitle = true)
     appendTitle(cardBase, elementClass = elementClassCardSubtitle, elementId = pageCraftsCraftingTimeRemainingSubtitleId, title = "Remaining: x minute(s)", isSubtitle = true)
+
+    const heading = cardBase.querySelector(`.${elementClassCardTitle}`);
+    if (heading) {
+        heading.style.margin = "0";
+        heading.style.fontSize = "1.05rem";
+        heading.style.lineHeight = "1.1";
+    }
+
+    const subtitles = cardBase.querySelectorAll(`.${elementClassCardSubtitle}`);
+    for (const subtitle of subtitles) {
+        subtitle.style.margin = "0";
+        subtitle.style.fontSize = "0.98rem";
+    }
 }
 
 function addCardTools(baseElement){
@@ -1995,6 +2100,71 @@ function getCraftingTime(selectedItems = getSelectedItems()){
     }
 
     return totalTime;
+}
+
+function getCraftingTimeBreakdown(selectedItems = getSelectedItems(), mode = "total") {
+    const entries = [];
+    let totalMinutes = 0;
+
+    for (const item of selectedItems) {
+        const itemName = item[markerTextContentProperty] || "Unknown Item";
+        const itemQuantity = getSelectedItemQuantity(item);
+        const itemIsChecked = isMaterialChecked(itemName, itemQuantity);
+
+        if (mode === "remaining" && itemIsChecked) {
+            continue;
+        }
+
+        for (const recipeId of item.recipeIds) {
+            const recipe = gAllRecipes.find(r => r.recipeId === recipeId);
+            if (!recipe) continue;
+
+            if (item.recipeIds.length > 1 && item.reqRecipeId !== recipeId) {
+                continue;
+            }
+
+            const runs = getCraftRunsForQuantity(recipe, itemQuantity, item.itemId);
+            const minutesPerRun = Number(recipe[itemPropertyCraftingTime]) || 0;
+            const minutes = minutesPerRun * runs;
+
+            if (runs <= 0 || minutes <= 0) {
+                continue;
+            }
+
+            entries.push({
+                itemName,
+                itemQuantity,
+                recipeName: getRecipeDisplayName(recipeId),
+                minutesPerRun,
+                runs,
+                minutes,
+            });
+
+            totalMinutes += minutes;
+        }
+    }
+
+    return { entries, totalMinutes };
+}
+
+function formatCraftingTimeBreakdownTooltip(selectedItems = getSelectedItems(), mode = "total") {
+    const breakdown = getCraftingTimeBreakdown(selectedItems, mode);
+    const title = mode === "remaining" ? "Remaining crafting time" : "Total crafting time";
+    const lines = [`${title}: ${breakdown.totalMinutes} minute${breakdown.totalMinutes === 1 ? "" : "s"}`];
+
+    if (breakdown.entries.length === 0) {
+        lines.push("No contributing items.");
+        return lines.join("\n");
+    }
+
+    lines.push("Breakdown:");
+    for (const entry of breakdown.entries) {
+        lines.push(
+            `- ${entry.itemName} x ${entry.itemQuantity} (${entry.recipeName}): ${entry.minutesPerRun}m x ${entry.runs} run${entry.runs === 1 ? "" : "s"} = ${entry.minutes}m`,
+        );
+    }
+
+    return lines.join("\n");
 }
 
 function getCheckedMaterialsCraftingTime(selectedItems = getSelectedItems()) {
@@ -2613,15 +2783,149 @@ function setupSelectedTreeHoverGuides(selectedListElement) {
     });
 }
 
+function isSelectedItemCompleteByItem(item = null) {
+    if (!item) return false;
+
+    const itemName = item[markerTextContentProperty] || "";
+    const requiredQty = getSelectedItemQuantity(item);
+    return isMaterialChecked(itemName, requiredQty);
+}
+
+function shouldHideRecursiveSelectedTreeNode(node = {}) {
+    if (!isHideCompletedRecursiveEnabled()) return false;
+    if (!node?.isAutoAdded) return false;
+
+    const hasCompletedAncestor = Boolean(node?.__hasCompletedAncestor);
+    const hasSuppressedAncestor = Boolean(node?.__hasSuppressedAncestor);
+
+    const requiredQty = normalizeSelectedQuantity(node.qty);
+    if (requiredQty <= 0) return false;
+
+    const nodeIsComplete = isMaterialChecked(node.textContent || "", requiredQty);
+    return hasCompletedAncestor || hasSuppressedAncestor || nodeIsComplete;
+}
+
+function recomputeRecursiveAutoVisibilityByItemId() {
+    gRecursiveAutoVisibilityByItemId = new Map();
+
+    if (!isHideCompletedRecursiveEnabled() || !isRecursiveModeEnabled()) {
+        return;
+    }
+
+    const trees = buildRecursiveSelectedTrees();
+
+    const walkNode = (node, hasCompletedAncestor = false, hasSuppressedAncestor = false) => {
+        if (!node) return;
+
+        const requiredQty = normalizeSelectedQuantity(node.qty);
+        const nodeIsComplete = requiredQty > 0 && isMaterialChecked(node.textContent || "", requiredQty);
+        const nodeIsSuppressed = !!node.isAutoAdded && (hasCompletedAncestor || hasSuppressedAncestor || nodeIsComplete);
+
+        if (node.isAutoAdded && node.itemId) {
+            const itemId = String(node.itemId || "").trim();
+            if (itemId) {
+                const visibility = gRecursiveAutoVisibilityByItemId.get(itemId) || { total: 0, visible: 0 };
+                visibility.total += 1;
+                if (!nodeIsSuppressed) {
+                    visibility.visible += 1;
+                }
+                gRecursiveAutoVisibilityByItemId.set(itemId, visibility);
+            }
+        }
+
+        const nextHasCompletedAncestor = hasCompletedAncestor || nodeIsComplete;
+        const nextHasSuppressedAncestor = hasSuppressedAncestor || nodeIsSuppressed;
+
+        for (const childNode of (Array.isArray(node.children) ? node.children : [])) {
+            walkNode(childNode, nextHasCompletedAncestor, nextHasSuppressedAncestor);
+        }
+    };
+
+    for (const rootNode of trees) {
+        walkNode(rootNode, false, false);
+    }
+}
+
+function shouldHideRecursiveSelectedItemEntry(item = {}) {
+    if (!isHideCompletedRecursiveEnabled()) return false;
+
+    const itemMarkKey = getSelectedItemMarkKey(item);
+    const isAutoAdded = gTrackedItems[itemMarkKey]?.recursiveSource === RECURSIVE_SOURCE_AUTO;
+    if (!isAutoAdded) return false;
+
+    const itemId = String(item?.itemId || "").trim();
+    if (itemId) {
+        const visibility = gRecursiveAutoVisibilityByItemId.get(itemId);
+        if (visibility?.total > 0) {
+            return visibility.visible <= 0;
+        }
+    }
+
+    const requiredQty = getSelectedItemQuantity(item);
+    if (requiredQty <= 0) return false;
+
+    return isMaterialChecked(item[markerTextContentProperty] || "", requiredQty);
+}
+
+function getSummaryVisibleSelectedItems(selectedItems = gSelectedItems) {
+    if (!isHideCompletedRecursiveEnabled()) {
+        return selectedItems;
+    }
+
+    return selectedItems.filter(item => !shouldHideRecursiveSelectedItemEntry(item));
+}
+
+function isAutoSelectedBreakdownEntry(entry = {}) {
+    if (!entry) return false;
+    const { entry: trackedEntry } = getTrackedEntryByItemId(entry.itemId);
+    return trackedEntry?.recursiveSource === RECURSIVE_SOURCE_AUTO;
+}
+
+function isBreakdownEntryParentComplete(entry = {}) {
+    if (!entry) return false;
+
+    const selectedParentItem = getSelectedItemByItemId(entry.itemId)
+        || getSelectedItemByMaterialName(entry.itemName || "");
+
+    return isSelectedItemCompleteByItem(selectedParentItem);
+}
+
+function shouldHideRecursiveMaterialRow(materialName = "", materialInfo = {}) {
+    if (!isHideCompletedRecursiveEnabled()) return false;
+
+    const totalRequiredQty = normalizeMaterialProgressQuantity(materialInfo?.qty || 0, 0);
+    if (!isMaterialChecked(materialName, totalRequiredQty)) return false;
+
+    const breakdown = Array.isArray(materialInfo?.breakdown) ? materialInfo.breakdown : [];
+    if (breakdown.length === 0) return false;
+
+    return breakdown.every(entry => {
+        return isAutoSelectedBreakdownEntry(entry) && isBreakdownEntryParentComplete(entry);
+    });
+}
+
 function renderTreeDepthFirst(selectedListElement, node) {
-    renderSelectedListEntry(selectedListElement, node);
+    const requiredQty = normalizeSelectedQuantity(node.qty);
+    const nodeIsComplete = requiredQty > 0 && isMaterialChecked(node.textContent || "", requiredQty);
+    const nodeIsSuppressed = shouldHideRecursiveSelectedTreeNode(node);
+
+    if (!nodeIsSuppressed) {
+        renderSelectedListEntry(selectedListElement, node);
+    }
+
+    const nextAncestorComplete = nodeIsComplete;
+    const nextAncestorSuppressed = nodeIsSuppressed;
 
     if (isTreeNodeCollapsed(node.pathKey)) {
         return;
     }
 
     for (const child of node.children) {
-        renderTreeDepthFirst(selectedListElement, child);
+        renderTreeDepthFirst(selectedListElement, {
+            ...child,
+            __hasCompletedAncestor: (node.__hasCompletedAncestor || false) || nextAncestorComplete,
+            __hasSuppressedAncestor: (node.__hasSuppressedAncestor || false) || nextAncestorSuppressed,
+        });
     }
 }
 
@@ -2635,7 +2939,11 @@ function populateSelectedList(){
 
         const trees = buildRecursiveSelectedTrees();
         for (const rootNode of trees) {
-            renderTreeDepthFirst(selectedListElement, rootNode);
+            renderTreeDepthFirst(selectedListElement, {
+                ...rootNode,
+                __hasCompletedAncestor: false,
+                __hasSuppressedAncestor: false,
+            });
         }
 
         applyMarksToAll();
@@ -2795,11 +3103,11 @@ function populateTrackedList(){
     applyMarksToAll();
 }
 
-function populateSkillList(skillList = document.getElementById(pageCraftsSkillsListId)) {
+function populateSkillList(skillList = document.getElementById(pageCraftsSkillsListId), selectedItems = gSelectedItems) {
     skillList.innerHTML = "";
 
-    let skillsRequired = getGreatestSkillLevels(gSelectedItems);
-    let skillsBreakdown = getSkillListFromSelectedItems(gSelectedItems);
+    let skillsRequired = getGreatestSkillLevels(selectedItems);
+    let skillsBreakdown = getSkillListFromSelectedItems(selectedItems);
     for (const skillName in skillsRequired){
         let skillLevel = skillsRequired[skillName].level
         let textContent = `${skillName} ${skillLevel}`;
@@ -2854,11 +3162,11 @@ function populateSkillList(skillList = document.getElementById(pageCraftsSkillsL
     }
 }
 
-function populateToolsList(toolsList = document.getElementById(pageCraftsToolsListId)){
+function populateToolsList(toolsList = document.getElementById(pageCraftsToolsListId), selectedItems = gSelectedItems){
     toolsList.innerHTML = "";
 
-    let toolsNeeded = getToolsNeeded(gSelectedItems);
-    let toolsBreakdown = getToolListFromSelectedItems(gSelectedItems);
+    let toolsNeeded = getToolsNeeded(selectedItems);
+    let toolsBreakdown = getToolListFromSelectedItems(selectedItems);
     for (const toolName in toolsNeeded){
         const li = document.createElement("li");
         const toolRow = document.createElement("div");
@@ -2911,10 +3219,15 @@ function populateMaterialsList(materialsList = document.getElementById(pageCraft
         materialsList.innerHTML = "";
     }
 
-    let materialsNeeded = getMaterialListFromSelectedItems(gSelectedItems);
+    const visibleSelectedItems = getSummaryVisibleSelectedItems(gSelectedItems);
+    let materialsNeeded = getMaterialListFromSelectedItems(visibleSelectedItems);
     for (const materialName in materialsNeeded){
         let qty = normalizeMaterialProgressQuantity(materialsNeeded[materialName].qty || 0, 0);
         const isChecked = isMaterialChecked(materialName, qty);
+
+        if (shouldHideRecursiveMaterialRow(materialName, materialsNeeded[materialName])) {
+            continue;
+        }
 
         const listItem = document.createElement("li");
         const materialRow = document.createElement("div");
@@ -3018,10 +3331,11 @@ function initTrackedCard() {
 }
 
 function initSkillCard() {
-    populateSkillList();
+    const visibleSelectedItems = getSummaryVisibleSelectedItems(gSelectedItems);
+    populateSkillList(undefined, visibleSelectedItems);
 
     let skillsSubtitle = document.getElementById(pageCraftsSkillsSubtitleId)
-    let numSkillsRequired = Object.keys(getGreatestSkillLevels(gSelectedItems)).length
+    let numSkillsRequired = Object.keys(getGreatestSkillLevels(visibleSelectedItems)).length
 
     if (numSkillsRequired === 0){
         skillsSubtitle.textContent = `You need no skills!`
@@ -3034,12 +3348,14 @@ function initSkillCard() {
 }
 
 function initToolsCard(){
+    const visibleSelectedItems = getSummaryVisibleSelectedItems(gSelectedItems);
+
     // Populate tools list
-    populateToolsList();
+    populateToolsList(undefined, visibleSelectedItems);
 
     // Tools text logic "x tool(s) needed" etc
     let toolsSubtitle = document.getElementById(pageCraftsToolsSubtitleId)
-    let numToolsNeeded = Object.keys(getToolsNeeded(gSelectedItems)).length
+    let numToolsNeeded = Object.keys(getToolsNeeded(visibleSelectedItems)).length
 
     if (numToolsNeeded === 0){
         toolsSubtitle.textContent = `You need no tools!`
@@ -3052,14 +3368,18 @@ function initToolsCard(){
 }
 
 function initCraftingTimeCard(){
+    const visibleSelectedItems = getSummaryVisibleSelectedItems(gSelectedItems);
+
     let craftingTimeSubtitle = document.getElementById(pageCraftsCraftingTimeSubtitleId)
     let craftingTimeRemainingSubtitle = document.getElementById(pageCraftsCraftingTimeRemainingSubtitleId)
-    let totalTime = getCraftingTime(gSelectedItems)
-    let checkedTime = getCheckedMaterialsCraftingTime(gSelectedItems)
+    let totalTime = getCraftingTime(visibleSelectedItems)
+    let checkedTime = getCheckedMaterialsCraftingTime(visibleSelectedItems)
     let remainingTime = Math.max(0, totalTime - checkedTime)
 
-    craftingTimeSubtitle.textContent = `Total: ${totalTime} minute${totalTime === 1 ? "" : "s"}`;
-    craftingTimeRemainingSubtitle.textContent = `Remaining: ${remainingTime} minute${remainingTime === 1 ? "" : "s"}`;
+    craftingTimeSubtitle.textContent = `Total ${totalTime}m`;
+    craftingTimeRemainingSubtitle.textContent = `Remaining ${remainingTime}m`;
+    craftingTimeSubtitle.title = formatCraftingTimeBreakdownTooltip(visibleSelectedItems, "total");
+    craftingTimeRemainingSubtitle.title = formatCraftingTimeBreakdownTooltip(visibleSelectedItems, "remaining");
 }
 
 function initMaterialsCard(){
@@ -3126,7 +3446,16 @@ export function updateView() {
 
     gSelectedItems = getSelectedItems();
     rebuildMaterialProgressFromBorrowSources(gSelectedItems);
+    recomputeRecursiveAutoVisibilityByItemId();
+
+    const summaryVisibleSelectedItems = getSummaryVisibleSelectedItems(gSelectedItems);
+    if (summaryVisibleSelectedItems.length !== gSelectedItems.length) {
+        rebuildMaterialProgressFromBorrowSources(summaryVisibleSelectedItems);
+        recomputeRecursiveAutoVisibilityByItemId();
+    }
+
     updateRecursiveToggleButtonState();
+    updateHideCompletedRecursiveToggleButtonState();
 
     //Tracked Card Setup
     initTrackedCard();
@@ -3177,6 +3506,7 @@ export function initCraftPage() {
     loadToolChecks();
     loadCharacterBorrowSettings();
     loadAskSelections();
+    loadHideCompletedRecursiveSetting();
 
     //Base Grid Setup
     mainGrid = addGridBase(baseElement)
@@ -3185,8 +3515,6 @@ export function initCraftPage() {
     addCardSelected(mainGrid)
     addCardToolbar(mainGrid)
     addCardCraftingTime(mainGrid)
-    addCraftingTimeRowSpacer(mainGrid, pageCraftsGridStyleCraftingTimeSpacerLeft)
-    addCraftingTimeRowSpacer(mainGrid, pageCraftsGridStyleCraftingTimeSpacerRight)
     addCardTools(mainGrid)
     addCardSkills(mainGrid)
     addCardMaterials(mainGrid)
@@ -3196,6 +3524,7 @@ export function initCraftPage() {
     setupButtonClear();
     setupButtonSave();
     setupRecursiveToggleButton();
+    setupHideCompletedRecursiveToggleButton();
     setupToolbarSettingsMenu();
 
     //Update Viewport

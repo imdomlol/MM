@@ -623,11 +623,62 @@ function renderRecipeDetail(recipe) {
         return true;
     }
 
+    function syncSplitSidePanelHeight() {
+        if (!recipeStack || !recipeStack.classList.contains("recipe-stack-split")) {
+            if (recipeStack) {
+                recipeStack.style.removeProperty("--recipe-side-height");
+                recipeStack.style.removeProperty("--recipe-side-max-height");
+            }
+            return;
+        }
+
+        const itemDetailsCard = document.getElementById("itemDetailsCard");
+        const relatedRecipesCard = document.getElementById("relatedRecipesCard");
+        const requirementsCard = document.getElementById("requirementsCard");
+        const flowRow = recipeStack.querySelector(".recipe-side-by-side-row");
+
+        if (!itemDetailsCard || !relatedRecipesCard) {
+            recipeStack.style.removeProperty("--recipe-side-height");
+            recipeStack.style.removeProperty("--recipe-side-max-height");
+            return;
+        }
+
+        const hasRequirements = requirementsCard && requirementsCard.style.display !== "none";
+        const hasFlow = flowRow && flowRow.style.display !== "none";
+
+        if (!hasRequirements && !hasFlow) {
+            recipeStack.style.removeProperty("--recipe-side-height");
+            recipeStack.style.removeProperty("--recipe-side-max-height");
+            return;
+        }
+
+        const gridStyle = getComputedStyle(recipeStack);
+        const rowGap = Number.parseFloat(gridStyle.rowGap || "0") || 0;
+        const requirementsHeight = hasRequirements ? requirementsCard.offsetHeight : 0;
+        const flowHeight = hasFlow ? flowRow.offsetHeight : 0;
+        const centerHeight = Math.round(requirementsHeight + flowHeight + (hasRequirements && hasFlow ? rowGap : 0));
+
+        if (centerHeight <= 0) {
+            recipeStack.style.removeProperty("--recipe-side-height");
+            recipeStack.style.removeProperty("--recipe-side-max-height");
+            return;
+        }
+
+        const sideNaturalHeight = Math.max(itemDetailsCard.scrollHeight, relatedRecipesCard.scrollHeight);
+        const sideHeight = Math.min(sideNaturalHeight, centerHeight);
+
+        recipeStack.style.setProperty("--recipe-side-height", `${sideHeight}px`);
+        recipeStack.style.setProperty("--recipe-side-max-height", `${centerHeight}px`);
+    }
+
     function equalizeMiddleCardSizes() {
         const ingredientsCard = document.getElementById("ingredientsCard");
         const resultsCard = document.getElementById("resultsCard");
 
-        if (!ingredientsCard || !resultsCard) return;
+        if (!ingredientsCard || !resultsCard) {
+            syncSplitSidePanelHeight();
+            return;
+        }
 
         ingredientsCard.style.minWidth = "";
         ingredientsCard.style.minHeight = "";
@@ -635,18 +686,18 @@ function renderRecipeDetail(recipe) {
         resultsCard.style.minHeight = "";
 
         if (ingredientsCard.style.display === "none" || resultsCard.style.display === "none") {
+            syncSplitSidePanelHeight();
             return;
         }
 
         const maxWidth = Math.max(ingredientsCard.offsetWidth, resultsCard.offsetWidth);
+        const maxHeight = Math.max(ingredientsCard.offsetHeight, resultsCard.offsetHeight);
         ingredientsCard.style.minWidth = `${maxWidth}px`;
+        ingredientsCard.style.minHeight = `${maxHeight}px`;
         resultsCard.style.minWidth = `${maxWidth}px`;
+        resultsCard.style.minHeight = `${maxHeight}px`;
 
-        requestAnimationFrame(() => {
-            const maxHeight = Math.max(ingredientsCard.offsetHeight, resultsCard.offsetHeight);
-            ingredientsCard.style.minHeight = `${maxHeight}px`;
-            resultsCard.style.minHeight = `${maxHeight}px`;
-        });
+        syncSplitSidePanelHeight();
     }
 
     gEqualizeCardSizesFunction = equalizeMiddleCardSizes;
@@ -752,9 +803,23 @@ function renderRecipeDetail(recipe) {
     const useSplitSideLayout = Boolean(descriptionText) && hasRelatedRecipes && hasCenterContent;
     if (recipeStack) {
         recipeStack.classList.toggle("recipe-stack-split", useSplitSideLayout);
+        if (!useSplitSideLayout) {
+            recipeStack.style.removeProperty("--recipe-side-height");
+            recipeStack.style.removeProperty("--recipe-side-max-height");
+        }
     }
 
-    requestAnimationFrame(equalizeMiddleCardSizes);
+    requestAnimationFrame(() => {
+        equalizeMiddleCardSizes();
+        requestAnimationFrame(equalizeMiddleCardSizes);
+        setTimeout(equalizeMiddleCardSizes, 80);
+    });
+
+    if (document.fonts?.ready) {
+        document.fonts.ready.then(() => {
+            requestAnimationFrame(equalizeMiddleCardSizes);
+        });
+    }
 }
 
 

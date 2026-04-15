@@ -1,6 +1,7 @@
 const RECURSIVE_MODE_STORAGE_KEY = "mm_recursive_mode_v1";
 const RECURSIVE_SOURCE_MANUAL = "manual";
 const RECURSIVE_SOURCE_AUTO = "auto";
+const RAW_MATERIALS_FOLDER_PREFIX = "raw materials";
 
 function idsEqual(left, right) {
   return String(left || "").trim() === String(right || "").trim();
@@ -113,8 +114,47 @@ function getCandidateRecipeIds(entry, itemData, outputRecipeIdsByItemId) {
   return (outputRecipeIdsByItemId.get(itemId) || []).map(id => String(id || "").trim()).filter(Boolean);
 }
 
-function resolveRecipeId(entry, recipeLookup, itemData = null, outputRecipeIdsByItemId = null) {
+function normalizeFolderPath(folderPath = "") {
+  return String(folderPath || "").trim().toLowerCase();
+}
+
+function isRawMaterialItem(itemData = null) {
+  if (!itemData || typeof itemData !== "object") return false;
+
+  const folderPath = normalizeFolderPath(itemData.folderPath || "");
+  const category = normalizeFolderPath(itemData.category || "");
+
+  if (folderPath === RAW_MATERIALS_FOLDER_PREFIX) return true;
+  if (folderPath.startsWith(`${RAW_MATERIALS_FOLDER_PREFIX}/`)) return true;
+  if (category === RAW_MATERIALS_FOLDER_PREFIX) return true;
+
+  return false;
+}
+
+function isSelfReferentialSingleIngredientRecipe(recipe, outputItemId = "") {
+  const ingredients = Array.isArray(recipe?.ingredients) ? recipe.ingredients : [];
+  if (ingredients.length !== 1) return false;
+
+  const normalizedOutputItemId = String(outputItemId || "").trim();
+  if (!normalizedOutputItemId) return false;
+
+  const onlyIngredientItemId = String(ingredients[0]?.itemId || "").trim();
+  return !!onlyIngredientItemId && idsEqual(onlyIngredientItemId, normalizedOutputItemId);
+}
+
+function getRecursiveCandidateRecipeIds(entry, itemData, recipeLookup, outputRecipeIdsByItemId) {
   const recipeIds = getCandidateRecipeIds(entry, itemData, outputRecipeIdsByItemId);
+  const itemId = String(entry?.itemId || itemData?.itemId || "").trim();
+
+  return recipeIds.filter(recipeId => {
+    const recipe = recipeLookup.get(String(recipeId || "").trim());
+    if (!recipe) return false;
+    return !isSelfReferentialSingleIngredientRecipe(recipe, itemId);
+  });
+}
+
+function resolveRecipeId(entry, recipeLookup, itemData = null, outputRecipeIdsByItemId = null) {
+  const recipeIds = getRecursiveCandidateRecipeIds(entry, itemData, recipeLookup, outputRecipeIdsByItemId);
   const requestedRecipeId = String(entry?.reqRecipeId || "").trim();
 
   if (requestedRecipeId && recipeIds.some(id => idsEqual(id, requestedRecipeId))) {
@@ -150,8 +190,10 @@ function getResolvedRecipeIds(entry, itemData) {
 }
 
 function hasCraftableRecipe(entry, itemData, recipeLookup, outputRecipeIdsByItemId) {
-  const recipeIds = getCandidateRecipeIds(entry, itemData, outputRecipeIdsByItemId);
-  return recipeIds.some(recipeId => recipeLookup.has(recipeId));
+  if (isRawMaterialItem(itemData)) return false;
+
+  const recipeIds = getRecursiveCandidateRecipeIds(entry, itemData, recipeLookup, outputRecipeIdsByItemId);
+  return recipeIds.length > 0;
 }
 
 function ensureEntryIdentity(entry, itemData, outputRecipeIdsByItemId = null) {
@@ -199,7 +241,9 @@ function getParentItemIds(itemData, recipeLookup) {
 }
 
 function hasExpandableIngredients(entry, itemData, recipeLookup, outputRecipeIdsByItemId) {
-  const recipeIds = getCandidateRecipeIds(entry, itemData, outputRecipeIdsByItemId);
+  if (isRawMaterialItem(itemData)) return false;
+
+  const recipeIds = getRecursiveCandidateRecipeIds(entry, itemData, recipeLookup, outputRecipeIdsByItemId);
 
   const itemId = String(entry?.itemId || itemData?.itemId || "").trim();
 
@@ -261,6 +305,8 @@ function expandFromEntry(entry, quantityMultiplier, marks, recipeLookup, manualB
   if (!entry) return;
 
   const itemData = entry.itemId ? itemLookup.get(String(entry.itemId).trim()) : null;
+  if (isRawMaterialItem(itemData)) return;
+
   const recipeId = resolveRecipeId(entry, recipeLookup, itemData, outputRecipeIdsByItemId);
   if (!recipeId) return;
 
