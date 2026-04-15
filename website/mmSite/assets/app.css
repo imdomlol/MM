@@ -963,6 +963,7 @@ input, select, button { font: inherit; }
     grid-area: flow;
     flex-wrap: nowrap;
     justify-content: center;
+    align-self: start;
   }
 
   .recipe-stack.recipe-stack-split > .recipe-side-by-side-row > #ingredientsCard,

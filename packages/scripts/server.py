@@ -5,9 +5,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-from data_pipeline.mmdb import DEFAULT_DB_PATH, get_connection, read_items_payload, read_player_inventories_payload, read_recipes_payload
+from packages.data_pipeline.mmdb import DEFAULT_DB_PATH, get_connection, read_items_payload, read_player_inventories_payload, read_recipes_payload
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 DB_PATH = DEFAULT_DB_PATH
 
 app = Flask(__name__)
@@ -38,7 +38,7 @@ def get_player_inventories():
 
 @app.route("/api/refresh-inventories", methods=["POST"])
 def refresh_inventories():
-    script = REPO_ROOT / "data_pipeline" / "cli_entrypoints" / "refresh_inventories.py"
+    script = REPO_ROOT / "packages" / "data_pipeline" / "cli_entrypoints" / "refresh_inventories.py"
     payload = request.get_json(silent=True) or {}
     selected_sheet_id = str(payload.get("sheetId") or "").strip()
     selected_player_name = str(payload.get("playerName") or "").strip()
@@ -62,7 +62,7 @@ def refresh_inventories():
 
 @app.route("/api/refresh-recipes", methods=["POST"])
 def refresh_recipes():
-    scripts_dir = REPO_ROOT / "data_pipeline" / "cli_entrypoints"
+    scripts_dir = REPO_ROOT / "packages" / "data_pipeline" / "cli_entrypoints"
     recipe_script = scripts_dir / "refresh_recipes.py"
     items_script = scripts_dir / "refresh_items.py"
 

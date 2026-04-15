@@ -26,6 +26,6 @@ if errorlevel 1 (
     echo Restarting MM API server...
     taskkill /f /im pythonw.exe >NUL
 )
-start "" /D "%REPO_ROOT%" "%PYTHONW_CMD%" server.py
+start "" /D "%REPO_ROOT%" "%PYTHONW_CMD%" -m packages.scripts.server
 
 echo Done.

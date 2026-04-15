@@ -9,12 +9,12 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from data_pipeline.selenium_utils import fetch_recipe_page_and_item_catalog_with_selenium
-from data_pipeline.mmdb import DEFAULT_DB_PATH, get_connection, replace_item_catalog_payload, replace_recipes_payload
+from packages.data_pipeline.selenium_utils import fetch_recipe_page_and_item_catalog_with_selenium
+from packages.data_pipeline.mmdb import DEFAULT_DB_PATH, get_connection, replace_item_catalog_payload, replace_recipes_payload
 
 
 @dataclass

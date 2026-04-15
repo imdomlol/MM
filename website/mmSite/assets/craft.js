@@ -1165,6 +1165,10 @@ function syncIndividualRecipeCardSizes() {
 }
 
 function getSelectedItemMarkKey(selectedItem) {
+    if (selectedItem?.__markKey && gTrackedItems[selectedItem.__markKey]?.[markerPropertySelected]) {
+        return selectedItem.__markKey;
+    }
+
     for (const key in gTrackedItems) {
         const trackedItem = gTrackedItems[key];
         if (!trackedItem?.[markerPropertySelected]) continue;
@@ -1847,9 +1851,10 @@ function getSelectedItems(){
         item.qty = normalizeSelectedQuantity(item.qty ?? previouslySelectedItem?.qty ?? 1);
 
         if (isSelected){
-            output.push(
-                item,
-            );
+            output.push({
+                ...item,
+                __markKey: key,
+            });
         }
     }
 
@@ -2339,7 +2344,7 @@ function buildRecursiveSelectedTrees() {
     };
 
     const manualRoots = gSelectedItems.filter(item => {
-        const markKey = getSelectedItemMarkKey(item);
+        const markKey = item?.__markKey || getSelectedItemMarkKey(item);
         return gTrackedItems[markKey]?.recursiveSource !== RECURSIVE_SOURCE_AUTO;
     });
 

@@ -7,11 +7,11 @@ from pathlib import Path
 import gspread
 from google.oauth2.service_account import Credentials
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from data_pipeline.mmdb import DEFAULT_DB_PATH, get_connection, read_items_payload, read_player_inventories_payload, replace_player_inventories_payload
+from packages.data_pipeline.mmdb import DEFAULT_DB_PATH, get_connection, read_items_payload, read_player_inventories_payload, replace_player_inventories_payload
 
 
 ITEM_HEADERS = {

@@ -31,28 +31,28 @@ Myth & Magic Helper is a single-page web application designed to enhance the Myt
 
 ## Data Pipeline
 
-Core data is stored in `data_pipeline/data/mm.db`.
+Core data is stored in `packages/data_pipeline/data/mm.db`.
 
-Pipeline code now lives in `data_pipeline/`:
-- `data_pipeline/mmdb.py` — SQLite schema helpers and payload readers/writers.
-- `data_pipeline/selenium_utils.py` — shared Selenium login/navigation/fetch.
-- `data_pipeline/recipe_scrapers/game_recipes_scraper.py` — fetch, parse, validate, and persist recipes.
-- `data_pipeline/builders/items_builder.py` — build item index from recipes payload.
-- `data_pipeline/builders/player_inventories_builder.py` — sync inventories from Sheets.
-- `data_pipeline/cli_entrypoints/` — script entrypoints used by `build.py` and `server.py`.
+Pipeline code now lives in `packages/data_pipeline/`:
+- `packages/data_pipeline/mmdb.py` — SQLite schema helpers and payload readers/writers.
+- `packages/data_pipeline/selenium_utils.py` — shared Selenium login/navigation/fetch.
+- `packages/data_pipeline/recipe_scrapers/game_recipes_scraper.py` — fetch, parse, validate, and persist recipes.
+- `packages/data_pipeline/builders/items_builder.py` — build item index from recipes payload.
+- `packages/data_pipeline/builders/player_inventories_builder.py` — sync inventories from Sheets.
+- `packages/data_pipeline/cli_entrypoints/` — script entrypoints used by `packages.scripts.build` and `packages.scripts.server`.
 
-The actual top-level runners now live in `scripts/`.
+The actual top-level runners now live in `packages/scripts/`.
 
 From the repository root, build or refresh all core data tables:
 
 ```bash
-python -m scripts.build
+python -m packages.scripts.build
 ```
 
 If you need to avoid live recipe fetch for a run, use:
 
 ```bash
-python -m scripts.build --skip-fetch
+python -m packages.scripts.build --skip-fetch
 ```
 
 Note: `--skip-fetch` requires either a previously cached source at `.build_cache/recipes_source.html` or a direct `--input` path passed to the recipe refresh entrypoint.
@@ -64,7 +64,7 @@ The frontend now fetches data from `/api/*`, so run the Flask API server while h
 From the repository root:
 
 ```bash
-python -m scripts.server
+python -m packages.scripts.server
 ```
 
 API routes:

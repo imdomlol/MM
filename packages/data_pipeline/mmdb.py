@@ -5,8 +5,8 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_DB_PATH = REPO_ROOT / "data_pipeline" / "data" / "mm.db"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_DB_PATH = REPO_ROOT / "packages" / "data_pipeline" / "data" / "mm.db"
 
 
 def get_connection(db_path: str | Path | None = None) -> sqlite3.Connection:
@@ -362,16 +362,23 @@ def read_recipes_payload(conn: sqlite3.Connection) -> dict[str, Any]:
                 "SELECT item_name AS item, qty, item_id AS itemId FROM recipe_results WHERE recipe_id = ? ORDER BY position",
                 (recipe_id,),
             ).fetchall()]
-            data = dict(recipe_row)
-            data["tools"] = json.loads(data.pop("tools_json") or "[]")
-            data["requirements"] = requirements
-            data["ingredients"] = ingredients
-            data["results"] = results
+            data = {
+                "name": recipe_row["name"],
+                "itemId": recipe_row["item_id"],
+                "recipeId": recipe_row["recipe_id"],
+                "bookId": recipe_row["book_id"],
+                "tools": json.loads(recipe_row["tools_json"] or "[]"),
+                "craftingTimeMinutes": recipe_row["crafting_time_minutes"],
+                "requirementsText": recipe_row["requirements_text"] or "",
+                "requirements": requirements,
+                "ingredients": ingredients,
+                "results": results,
+            }
             recipes.append(data)
         books.append({
             "bookId": book_row["book_id"],
             "name": book_row["name"],
-            "description": book_row["description"],
+            "description": book_row["description"] or "",
             "recipes": recipes,
         })
     return {

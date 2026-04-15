@@ -2,6 +2,10 @@ const RECURSIVE_MODE_STORAGE_KEY = "mm_recursive_mode_v1";
 const RECURSIVE_SOURCE_MANUAL = "manual";
 const RECURSIVE_SOURCE_AUTO = "auto";
 
+function idsEqual(left, right) {
+  return String(left || "").trim() === String(right || "").trim();
+}
+
 function normalizeQuantity(quantity) {
   const parsed = Number(quantity);
   if (!Number.isFinite(parsed) || parsed < 1) return 1;
@@ -32,15 +36,46 @@ function isManualSelected(entry) {
 function getRecipeLookup(recipes) {
   const map = new Map();
   for (const recipe of Array.isArray(recipes) ? recipes : []) {
-    if (recipe?.recipeId) map.set(recipe.recipeId, recipe);
+    if (!recipe?.recipeId) continue;
+    map.set(String(recipe.recipeId).trim(), recipe);
   }
+  return map;
+}
+
+function getOutputRecipeIdsByItemId(recipes) {
+  const map = new Map();
+
+  for (const recipe of Array.isArray(recipes) ? recipes : []) {
+    const recipeId = String(recipe?.recipeId || "").trim();
+    if (!recipeId) continue;
+
+    const outputItemIds = new Set();
+    const directItemId = String(recipe?.itemId || "").trim();
+    if (directItemId) outputItemIds.add(directItemId);
+
+    const results = Array.isArray(recipe?.results) ? recipe.results : [];
+    for (const result of results) {
+      const resultItemId = String(result?.itemId || "").trim();
+      if (resultItemId) outputItemIds.add(resultItemId);
+    }
+
+    for (const itemId of outputItemIds) {
+      const existing = map.get(itemId) || [];
+      if (!existing.includes(recipeId)) {
+        existing.push(recipeId);
+        map.set(itemId, existing);
+      }
+    }
+  }
+
   return map;
 }
 
 function getItemLookup(items) {
   const map = new Map();
   for (const item of Array.isArray(items) ? items : []) {
-    if (item?.itemId) map.set(item.itemId, item);
+    if (!item?.itemId) continue;
+    map.set(String(item.itemId).trim(), item);
   }
   return map;
 }
@@ -50,7 +85,7 @@ function getRecipeOutputQuantity(recipe, itemId = "") {
   if (results.length === 0) return 1;
 
   if (itemId) {
-    const matchingResult = results.find(result => result?.itemId === itemId);
+    const matchingResult = results.find(result => idsEqual(result?.itemId, itemId));
     if (matchingResult) {
       const parsed = Number(matchingResult.qty);
       return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 1;
@@ -68,10 +103,22 @@ function getCraftRunsForQuantity(recipe, desiredQuantity, itemId = "") {
   return Math.ceil(parsedDesired / outputQuantity);
 }
 
-function resolveRecipeId(entry, recipeLookup) {
-  const recipeIds = Array.isArray(entry?.recipeIds) ? entry.recipeIds.filter(Boolean) : [];
-  if (entry?.reqRecipeId && recipeIds.includes(entry.reqRecipeId)) {
-    return entry.reqRecipeId;
+function getCandidateRecipeIds(entry, itemData, outputRecipeIdsByItemId) {
+  const recipeIds = getResolvedRecipeIds(entry, itemData);
+  if (recipeIds.length > 0) return recipeIds;
+
+  const itemId = String(entry?.itemId || itemData?.itemId || "").trim();
+  if (!itemId || !outputRecipeIdsByItemId) return [];
+
+  return (outputRecipeIdsByItemId.get(itemId) || []).map(id => String(id || "").trim()).filter(Boolean);
+}
+
+function resolveRecipeId(entry, recipeLookup, itemData = null, outputRecipeIdsByItemId = null) {
+  const recipeIds = getCandidateRecipeIds(entry, itemData, outputRecipeIdsByItemId);
+  const requestedRecipeId = String(entry?.reqRecipeId || "").trim();
+
+  if (requestedRecipeId && recipeIds.some(id => idsEqual(id, requestedRecipeId))) {
+    return requestedRecipeId;
   }
 
   for (const recipeId of recipeIds) {
@@ -81,19 +128,53 @@ function resolveRecipeId(entry, recipeLookup) {
   return recipeIds[0] || "";
 }
 
-function ensureEntryIdentity(entry, itemData) {
+function getRecipeOutputItemId(recipe) {
+  const recipeItemId = String(recipe?.itemId || "").trim();
+  if (recipeItemId) return recipeItemId;
+
+  const results = Array.isArray(recipe?.results) ? recipe.results : [];
+  const firstResultItemId = String(results[0]?.itemId || "").trim();
+  return firstResultItemId;
+}
+
+function getResolvedRecipeIds(entry, itemData) {
+  const entryRecipeIds = Array.isArray(entry?.recipeIds)
+    ? entry.recipeIds.map(id => String(id || "").trim()).filter(Boolean)
+    : [];
+
+  if (entryRecipeIds.length > 0) return entryRecipeIds;
+
+  return Array.isArray(itemData?.recipeIds)
+    ? itemData.recipeIds.map(id => String(id || "").trim()).filter(Boolean)
+    : [];
+}
+
+function hasCraftableRecipe(entry, itemData, recipeLookup, outputRecipeIdsByItemId) {
+  const recipeIds = getCandidateRecipeIds(entry, itemData, outputRecipeIdsByItemId);
+  return recipeIds.some(recipeId => recipeLookup.has(recipeId));
+}
+
+function ensureEntryIdentity(entry, itemData, outputRecipeIdsByItemId = null) {
   if (!itemData) return entry;
 
-  entry.itemId = entry.itemId || itemData.itemId || "";
+  entry.itemId = String(entry.itemId || itemData.itemId || "").trim();
   entry.textContent = entry.textContent || itemData.name || "";
 
-  const recipeIds = Array.isArray(itemData.recipeIds) ? itemData.recipeIds : [];
-  if (!Array.isArray(entry.recipeIds) || entry.recipeIds.length === 0) {
-    entry.recipeIds = recipeIds;
+  const recipeIds = Array.isArray(itemData.recipeIds)
+    ? itemData.recipeIds.map(id => String(id || "").trim()).filter(Boolean)
+    : [];
+
+  let resolvedRecipeIds = recipeIds;
+  if (resolvedRecipeIds.length === 0 && outputRecipeIdsByItemId) {
+    resolvedRecipeIds = (outputRecipeIdsByItemId.get(entry.itemId) || []).map(id => String(id || "").trim()).filter(Boolean);
   }
 
-  if (!entry.reqRecipeId && recipeIds.length > 0) {
-    entry.reqRecipeId = recipeIds[0];
+  if (!Array.isArray(entry.recipeIds) || entry.recipeIds.length === 0) {
+    entry.recipeIds = resolvedRecipeIds;
+  }
+
+  if (!entry.reqRecipeId && resolvedRecipeIds.length > 0) {
+    entry.reqRecipeId = resolvedRecipeIds[0];
   }
 
   return entry;
@@ -117,55 +198,28 @@ function getParentItemIds(itemData, recipeLookup) {
   return parentItemIds;
 }
 
-function hasExpandableIngredients(entry, itemData, recipeLookup) {
-  const recipeIds = Array.isArray(entry?.recipeIds) && entry.recipeIds.length > 0
-    ? entry.recipeIds
-    : Array.isArray(itemData?.recipeIds)
-      ? itemData.recipeIds
-      : [];
+function hasExpandableIngredients(entry, itemData, recipeLookup, outputRecipeIdsByItemId) {
+  const recipeIds = getCandidateRecipeIds(entry, itemData, outputRecipeIdsByItemId);
 
-  const itemId = entry?.itemId || itemData?.itemId || "";
-  const parentItemIds = getParentItemIds(itemData, recipeLookup);
-  let allRecipesIncludeSelf = recipeIds.length > 0;
-  let hasExpandableRecipe = false;
+  const itemId = String(entry?.itemId || itemData?.itemId || "").trim();
 
   for (const recipeId of recipeIds) {
-    const recipe = recipeLookup.get(recipeId);
+    const recipe = recipeLookup.get(String(recipeId || "").trim());
     if (!recipe || !Array.isArray(recipe.ingredients) || recipe.ingredients.length === 0) {
-      allRecipesIncludeSelf = false;
       continue;
-    }
-
-    const includesSelfIngredient = recipe.ingredients.some(ingredient => {
-      return ingredient?.itemId === itemId;
-    });
-    if (!includesSelfIngredient) {
-      allRecipesIncludeSelf = false;
     }
 
     const hasNonSelfIngredient = recipe.ingredients.some(ingredient => {
-      return ingredient?.itemId && ingredient.itemId !== itemId;
+      const ingredientItemId = String(ingredient?.itemId || "").trim();
+      return ingredientItemId && !idsEqual(ingredientItemId, itemId);
     });
-
-    const isOnlySelfOrParentIngredients = recipe.ingredients.every(ingredient => {
-      const ingredientItemId = ingredient?.itemId || "";
-      return ingredientItemId && (ingredientItemId === itemId || parentItemIds.has(ingredientItemId));
-    });
-
-    if (recipeIds.length === 1 && isOnlySelfOrParentIngredients) {
-      continue;
-    }
 
     if (hasNonSelfIngredient) {
-      hasExpandableRecipe = true;
+      return true;
     }
   }
 
-  if (allRecipesIncludeSelf) {
-    return false;
-  }
-
-  return hasExpandableRecipe;
+  return false;
 }
 
 function pruneAutoEntries(marks) {
@@ -196,33 +250,45 @@ function collectManualRoots(marks) {
 
     roots.push({ key, entry });
     if (entry.itemId) {
-      manualByItemId.set(entry.itemId, entry);
+      manualByItemId.set(String(entry.itemId).trim(), entry);
     }
   }
 
   return { roots, manualByItemId };
 }
 
-function expandFromEntry(entry, quantityMultiplier, marks, recipeLookup, manualByItemId, itemLookup, totalsByItemId, path) {
-  if (!entry?.itemId) return;
+function expandFromEntry(entry, quantityMultiplier, marks, recipeLookup, manualByItemId, itemLookup, totalsByItemId, path, outputRecipeIdsByItemId) {
+  if (!entry) return;
 
-  const pathKey = entry.itemId;
-  if (path.has(pathKey)) return;
-
-  const nextPath = new Set(path);
-  nextPath.add(pathKey);
-
-  const recipeId = resolveRecipeId(entry, recipeLookup);
+  const itemData = entry.itemId ? itemLookup.get(String(entry.itemId).trim()) : null;
+  const recipeId = resolveRecipeId(entry, recipeLookup, itemData, outputRecipeIdsByItemId);
   if (!recipeId) return;
 
   const recipe = recipeLookup.get(recipeId);
   if (!recipe || !Array.isArray(recipe.ingredients)) return;
 
+  if (!entry.itemId) {
+    const derivedItemId = getRecipeOutputItemId(recipe);
+    if (derivedItemId) {
+      entry.itemId = derivedItemId;
+      const derivedItemData = itemLookup.get(derivedItemId);
+      ensureEntryIdentity(entry, derivedItemData, outputRecipeIdsByItemId);
+    }
+  }
+
+  if (!entry.itemId) return;
+
+  const pathKey = String(entry.itemId || "").trim();
+  if (path.has(pathKey)) return;
+
+  const nextPath = new Set(path);
+  nextPath.add(pathKey);
+
   const craftRuns = getCraftRunsForQuantity(recipe, quantityMultiplier, entry.itemId);
   if (craftRuns <= 0) return;
 
   for (const ingredient of recipe.ingredients) {
-    const childItemId = ingredient?.itemId;
+    const childItemId = String(ingredient?.itemId || "").trim();
     const baseQty = normalizeRequirementQuantity(ingredient?.qty);
 
     if (!childItemId || baseQty <= 0) continue;
@@ -232,17 +298,19 @@ function expandFromEntry(entry, quantityMultiplier, marks, recipeLookup, manualB
 
     const existingChildEntry = marks[childItemId] || {};
     const childItemData = itemLookup.get(childItemId);
-    const childEntry = ensureEntryIdentity({ ...existingChildEntry, itemId: childItemId }, childItemData);
+    const childEntry = ensureEntryIdentity({ ...existingChildEntry, itemId: childItemId }, childItemData, outputRecipeIdsByItemId);
 
-    if (!hasExpandableIngredients(childEntry, childItemData, recipeLookup)) {
+    if (!hasCraftableRecipe(childEntry, childItemData, recipeLookup, outputRecipeIdsByItemId)) {
       continue;
     }
 
-    if (!manualByItemId.has(childItemId)) {
-      totalsByItemId.set(childItemId, (totalsByItemId.get(childItemId) || 0) + requiredQty);
-    }
+    totalsByItemId.set(childItemId, (totalsByItemId.get(childItemId) || 0) + requiredQty);
 
     if (manualByItemId.has(childItemId)) {
+      continue;
+    }
+
+    if (!hasExpandableIngredients(childEntry, childItemData, recipeLookup, outputRecipeIdsByItemId)) {
       continue;
     }
 
@@ -255,6 +323,7 @@ function expandFromEntry(entry, quantityMultiplier, marks, recipeLookup, manualB
       itemLookup,
       totalsByItemId,
       nextPath,
+      outputRecipeIdsByItemId,
     );
   }
 }
@@ -271,6 +340,7 @@ export function recomputeRecursiveMarks(marks, allItems, allRecipes) {
   const nextMarks = cloneMarks(marks);
   const recipeLookup = getRecipeLookup(allRecipes);
   const itemLookup = getItemLookup(allItems);
+  const outputRecipeIdsByItemId = getOutputRecipeIdsByItemId(allRecipes);
 
   pruneAutoEntries(nextMarks);
 
@@ -279,11 +349,11 @@ export function recomputeRecursiveMarks(marks, allItems, allRecipes) {
 
   for (const root of roots) {
     const itemData = root.entry.itemId ? itemLookup.get(root.entry.itemId) : null;
-    ensureEntryIdentity(root.entry, itemData);
+    ensureEntryIdentity(root.entry, itemData, outputRecipeIdsByItemId);
 
     const qty = normalizeQuantity(root.entry.qty);
     root.entry.qty = qty;
-    expandFromEntry(root.entry, qty, nextMarks, recipeLookup, manualByItemId, itemLookup, totalsByItemId, new Set());
+    expandFromEntry(root.entry, qty, nextMarks, recipeLookup, manualByItemId, itemLookup, totalsByItemId, new Set(), outputRecipeIdsByItemId);
     nextMarks[root.key] = root.entry;
   }
 
@@ -294,7 +364,7 @@ export function recomputeRecursiveMarks(marks, allItems, allRecipes) {
     const itemData = itemLookup.get(childItemId);
     const existingEntry = nextMarks[childItemId] || {};
 
-    const entry = ensureEntryIdentity({ ...existingEntry }, itemData);
+    const entry = ensureEntryIdentity({ ...existingEntry }, itemData, outputRecipeIdsByItemId);
     entry.itemId = entry.itemId || childItemId;
     entry.selected = true;
     entry.recursiveSource = RECURSIVE_SOURCE_AUTO;

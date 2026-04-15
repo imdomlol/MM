@@ -5,10 +5,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-from data_pipeline.mmdb import DEFAULT_DB_PATH
+from packages.data_pipeline.mmdb import DEFAULT_DB_PATH
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS_DIR = REPO_ROOT / "data_pipeline" / "cli_entrypoints"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+SCRIPTS_DIR = REPO_ROOT / "packages" / "data_pipeline" / "cli_entrypoints"
 DB_PATH = DEFAULT_DB_PATH
 
 
