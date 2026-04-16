@@ -133,6 +133,7 @@ const itemCardMaterialsSubtitleIdSuffix = "_materialsSubtitle"
 const itemCardNavContainerIdSuffix = "_navContainer"
 const craftCardsDefaultMaxHeight = "75vh"
 const craftCardsMinimumHeightPx = 280
+const craftCardsViewportMinHeightRatio = 0.33
 
 let gTrackedItems = {};
 let gSelectedItems = [];
@@ -1163,7 +1164,9 @@ function syncCraftSummaryCardHeights() {
     }
 
     const referenceHeight = Math.max(skillsCard.scrollHeight, toolsCard.scrollHeight);
-    const summaryRowHeight = Math.max(referenceHeight, craftCardsMinimumHeightPx);
+    const viewportMinimumHeight = Math.round(window.innerHeight * craftCardsViewportMinHeightRatio);
+    const summaryMinimumHeight = Math.max(craftCardsMinimumHeightPx, viewportMinimumHeight);
+    const summaryRowHeight = Math.max(referenceHeight, summaryMinimumHeight);
     const summaryHeightPx = `${summaryRowHeight}px`;
 
     const summaryCards = [
@@ -1174,7 +1177,7 @@ function syncCraftSummaryCardHeights() {
 
     for (const card of summaryCards) {
         if (!card) continue;
-        card.style.minHeight = `${craftCardsMinimumHeightPx}px`;
+        card.style.minHeight = `${summaryMinimumHeight}px`;
         card.style.height = summaryHeightPx;
         card.style.maxHeight = summaryHeightPx;
     }
@@ -1185,11 +1188,11 @@ function syncCraftSummaryCardHeights() {
 
     const gridRowGap = Number.parseFloat(getComputedStyle(mainGrid).rowGap || "0") || 0;
     const craftingRowHeight = craftingTimeCard.scrollHeight;
-    const sideHeight = Math.max(summaryRowHeight + craftingRowHeight + gridRowGap, craftCardsMinimumHeightPx);
+    const sideHeight = Math.max(summaryRowHeight + craftingRowHeight + gridRowGap, summaryMinimumHeight);
     const sideHeightPx = `${Math.round(sideHeight)}px`;
 
     for (const card of [selectedCard, trackedCard]) {
-        card.style.minHeight = `${craftCardsMinimumHeightPx}px`;
+        card.style.minHeight = `${summaryMinimumHeight}px`;
         card.style.height = sideHeightPx;
         card.style.maxHeight = sideHeightPx;
     }
