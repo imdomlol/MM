@@ -133,7 +133,7 @@ const itemCardMaterialsSubtitleIdSuffix = "_materialsSubtitle"
 const itemCardNavContainerIdSuffix = "_navContainer"
 const craftCardsDefaultMaxHeight = "75vh"
 const craftCardsMinimumHeightPx = 280
-const craftCardsViewportMinHeightRatio = 0.33
+const craftCardsViewportMinHeightRatio = 0.40
 
 let gTrackedItems = {};
 let gSelectedItems = [];
