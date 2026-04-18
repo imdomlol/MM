@@ -133,7 +133,6 @@ const itemCardMaterialsSubtitleIdSuffix = "_materialsSubtitle"
 const itemCardNavContainerIdSuffix = "_navContainer"
 const craftCardsDefaultMaxHeight = "75vh"
 const craftCardsMinimumHeightPx = 280
-const craftCardsViewportMinHeightRatio = 0.40
 
 let gTrackedItems = {};
 let gSelectedItems = [];
@@ -1164,9 +1163,7 @@ function syncCraftSummaryCardHeights() {
     }
 
     const referenceHeight = Math.max(skillsCard.scrollHeight, toolsCard.scrollHeight);
-    const viewportMinimumHeight = Math.round(window.innerHeight * craftCardsViewportMinHeightRatio);
-    const summaryMinimumHeight = Math.max(craftCardsMinimumHeightPx, viewportMinimumHeight);
-    const summaryRowHeight = Math.max(referenceHeight, summaryMinimumHeight);
+    const summaryRowHeight = Math.max(referenceHeight, craftCardsMinimumHeightPx);
     const summaryHeightPx = `${summaryRowHeight}px`;
 
     const summaryCards = [
@@ -1177,7 +1174,7 @@ function syncCraftSummaryCardHeights() {
 
     for (const card of summaryCards) {
         if (!card) continue;
-        card.style.minHeight = `${summaryMinimumHeight}px`;
+        card.style.minHeight = `${craftCardsMinimumHeightPx}px`;
         card.style.height = summaryHeightPx;
         card.style.maxHeight = summaryHeightPx;
     }
@@ -1188,11 +1185,11 @@ function syncCraftSummaryCardHeights() {
 
     const gridRowGap = Number.parseFloat(getComputedStyle(mainGrid).rowGap || "0") || 0;
     const craftingRowHeight = craftingTimeCard.scrollHeight;
-    const sideHeight = Math.max(summaryRowHeight + craftingRowHeight + gridRowGap, summaryMinimumHeight);
+    const sideHeight = Math.max(summaryRowHeight + craftingRowHeight + gridRowGap, craftCardsMinimumHeightPx);
     const sideHeightPx = `${Math.round(sideHeight)}px`;
 
     for (const card of [selectedCard, trackedCard]) {
-        card.style.minHeight = `${summaryMinimumHeight}px`;
+        card.style.minHeight = `${craftCardsMinimumHeightPx}px`;
         card.style.height = sideHeightPx;
         card.style.maxHeight = sideHeightPx;
     }
@@ -1580,8 +1577,8 @@ function addGridBase(baseElement, elementClass = elementClassGrid, elementId = "
 
     //Arrange Base Grid
     mainGrid.style.gridTemplateAreas = `
-    ". Toolbar Toolbar Toolbar ."
-    "Selected CraftingTime CraftingTime CraftingTime Tracked"
+    "Toolbar Toolbar Toolbar Toolbar Toolbar"
+    "Selected CraftingTimeSpacerLeft CraftingTime CraftingTimeSpacerRight Tracked"
     "Selected Skills Tools Materials Tracked"
     `;
     mainGrid.style.gridTemplateColumns = "1fr 1fr 1fr 1fr 1fr";
@@ -1622,13 +1619,7 @@ function addCardToolbar(baseElement){
     cardBase.style.overflowY = "";
     cardBase.style.display = "flex";
     cardBase.style.alignItems = "center";
-    cardBase.style.width = "fit-content";
-    cardBase.style.maxWidth = "max-content";
-    cardBase.style.justifySelf = "center";
-    cardBase.style.margin = "0 auto";
     cardBase.style.gap = "0.5rem";
-    cardBase.style.padding = "10px 14px";
-    cardBase.style.boxShadow = "0 10px 28px rgba(0, 0, 0, 0.25)";
     let elementClass = "", elementId = "", elementText = "", elementHref;
 
     appendButton(cardBase, elementClass = elementClassButton, elementId = "testButton", elementText = "Clear")
@@ -1705,31 +1696,11 @@ function addCardToolbar(baseElement){
 function addCardCraftingTime(baseElement){
     const cardBase = createCard(baseElement, elementClassCard, pageCraftsCardStyleCraftingTime);
     cardBase.style.overflowY = "";
-    cardBase.style.display = "flex";
-    cardBase.style.alignItems = "center";
-    cardBase.style.justifyContent = "center";
-    cardBase.style.flexWrap = "wrap";
-    cardBase.style.columnGap = "16px";
-    cardBase.style.rowGap = "4px";
-    cardBase.style.padding = "8px 12px";
     let elementClass = "", elementId = "", title = "", isSubtitle = true;
 
     appendTitle(cardBase, elementClass = elementClassCardTitle, elementId = "", title = pageCraftsCraftingTimeTitle)
     appendTitle(cardBase, elementClass = elementClassCardSubtitle, elementId = pageCraftsCraftingTimeSubtitleId, title = "Total: x minute(s)", isSubtitle = true)
     appendTitle(cardBase, elementClass = elementClassCardSubtitle, elementId = pageCraftsCraftingTimeRemainingSubtitleId, title = "Remaining: x minute(s)", isSubtitle = true)
-
-    const heading = cardBase.querySelector(`.${elementClassCardTitle}`);
-    if (heading) {
-        heading.style.margin = "0";
-        heading.style.fontSize = "1.05rem";
-        heading.style.lineHeight = "1.1";
-    }
-
-    const subtitles = cardBase.querySelectorAll(`.${elementClassCardSubtitle}`);
-    for (const subtitle of subtitles) {
-        subtitle.style.margin = "0";
-        subtitle.style.fontSize = "0.98rem";
-    }
 }
 
 function addCardTools(baseElement){
@@ -3379,8 +3350,8 @@ function initCraftingTimeCard(){
     let checkedTime = getCheckedMaterialsCraftingTime(visibleSelectedItems)
     let remainingTime = Math.max(0, totalTime - checkedTime)
 
-    craftingTimeSubtitle.textContent = `Total ${totalTime}m`;
-    craftingTimeRemainingSubtitle.textContent = `Remaining ${remainingTime}m`;
+    craftingTimeSubtitle.textContent = `Total: ${totalTime} minute${totalTime === 1 ? "" : "s"}`;
+    craftingTimeRemainingSubtitle.textContent = `Remaining: ${remainingTime} minute${remainingTime === 1 ? "" : "s"}`;
     craftingTimeSubtitle.title = formatCraftingTimeBreakdownTooltip(visibleSelectedItems, "total");
     craftingTimeRemainingSubtitle.title = formatCraftingTimeBreakdownTooltip(visibleSelectedItems, "remaining");
 }
@@ -3518,6 +3489,8 @@ export function initCraftPage() {
     addCardSelected(mainGrid)
     addCardToolbar(mainGrid)
     addCardCraftingTime(mainGrid)
+    addCraftingTimeRowSpacer(mainGrid, pageCraftsGridStyleCraftingTimeSpacerLeft)
+    addCraftingTimeRowSpacer(mainGrid, pageCraftsGridStyleCraftingTimeSpacerRight)
     addCardTools(mainGrid)
     addCardSkills(mainGrid)
     addCardMaterials(mainGrid)
